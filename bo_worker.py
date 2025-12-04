@@ -8,6 +8,8 @@ from typing import Dict, List, Optional
 from skopt import gp_minimize
 from skopt.space import Real
 
+from pedal_communication import DataCollector
+
 from common_types import StimJob, StimResult, StimParameters
 
 
@@ -47,12 +49,14 @@ class BayesianOptimizationWorker(threading.Thread):
         job_queue: "queue.Queue[Optional[StimJob]]",
         stop_event: threading.Event,
         space: List[Real],
+        data_collector: DataCollector,
         name: str = "BayesianOptimizationWorker",
     ):
         super().__init__(name=name, daemon=True)
         self.job_queue = job_queue
         self.stop_event = stop_event
         self.space = space
+        self.data_collector = data_collector
 
         self._job_id_counter = count(start=1)
         self._results: Dict[int, StimResult] = {}
@@ -103,11 +107,13 @@ class BayesianOptimizationWorker(threading.Thread):
         self.best_result = gp_minimize(
             func=self._objective,
             dimensions=self.space,
-            n_calls=6,
+            n_calls=100,  # 6,
             n_initial_points=6,
-            acq_func="EI",
+            acq_func="LCB",  # "LCB", "EI", "PI", "gp_hedge", "EIps", "PIps"
+            kappa=5,  # *
             random_state=0,
-        )
+            n_jobs=1,
+        )  # x0, y0, kappa[exploitation, exploration], xi [minimal improvement default 0.01]
 
         print("[BO] Optimization finished.")
         print("[BO] Best parameters (flat vector):", self.best_result.x)

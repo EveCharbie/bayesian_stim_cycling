@@ -8,6 +8,8 @@ from typing import Optional, Dict, Callable, List
 import numpy as np
 import nidaqmx
 
+from pedal_communication import DataCollector
+
 from pysciencemode import Rehastim2 as St
 from pysciencemode import Channel as Ch
 from pysciencemode import Device, Modes
@@ -245,6 +247,7 @@ class StimulationWorker(threading.Thread):
         job_queue: "queue.Queue[Optional[StimJob]]",
         stop_event: threading.Event,
         result_callback: Callable[[StimResult], None],
+        data_collector: DataCollector = None,
         eval_duration_s: float = 2.0,
         name: str = "StimulationWorker",
     ):
@@ -252,6 +255,7 @@ class StimulationWorker(threading.Thread):
         self.job_queue = job_queue
         self.stop_event = stop_event
         self.result_callback = result_callback
+        self.data_collector = data_collector
         self.eval_duration_s = eval_duration_s
 
         # Single hardware controller that runs continuously

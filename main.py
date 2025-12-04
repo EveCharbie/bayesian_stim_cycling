@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import threading
 import queue
+import time
+import logging
+
+from pedal_communication import PedalDevice, DataType, DataCollector
 
 from bo_worker import BayesianOptimizationWorker, build_search_space
 from stim_worker import StimulationWorker
 from common_types import StimJob
 
 
-def main():
+def start_stimulation_optimization(data_collector: DataCollector) -> None:
+
     # Shared queue and stop flag
     job_queue: "queue.Queue[StimJob | None]" = queue.Queue()
     stop_event = threading.Event()
@@ -21,6 +26,7 @@ def main():
         job_queue=job_queue,
         stop_event=stop_event,
         space=space,
+        data_collector=data_collector,
     )
 
     # Create stimulation worker and connect callback
@@ -29,6 +35,7 @@ def main():
         stop_event=stop_event,
         result_callback=bo_worker.handle_result,
         eval_duration_s=10.0,  # seconds per cost fun evaluation
+        data_collector=data_collector,
     )
 
     # Start both threads
@@ -56,4 +63,19 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    # Connect to the device. If no real devices are available, one can run the script `mocked_device.py` to create a
+    # local TCP mock device that simulates a real pedal device.
+    device = PedalDevice()
+    while not device.connect():
+        time.sleep(0.1)
+
+    data_collector = DataCollector(device)
+    # data_collector.show_live([DataType.A0, DataType.A1, DataType.A2])
+
+    # Initialize the data collection from the pedals and start the optimization
+    data_collector.start()
+    start_stimulation_optimization(data_collector)
+    data_collector.stop()
