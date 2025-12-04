@@ -8,7 +8,7 @@ from typing import Optional, Dict, Callable, List
 import numpy as np
 import nidaqmx
 
-from pedal_communication import DataCollector
+from pedal_communication import DataCollector, DataType
 
 from pysciencemode import Rehastim2 as St
 from pysciencemode import Channel as Ch
@@ -264,7 +264,7 @@ class StimulationWorker(threading.Thread):
         # State for current BO evaluation
         self.current_job: Optional[StimJob] = None
         self.eval_start_time: Optional[float] = None
-        self.eval_buffer: List[Dict] = []
+        # self.eval_buffer: List[Dict] = []
 
     def run(self) -> None:
         while not self.stop_event.is_set():
@@ -286,22 +286,17 @@ class StimulationWorker(threading.Thread):
             angle = self.controller.get_angle()
             # print(angle)
 
+            # Clear the data collector buffer
+            self.data_collector.clear()
+
             if self.controller.update_stimulation_for_current_angle():
                 # Only call when intensity or pulse width changed
                 self.controller.stimulator.start_stimulation(
                     upd_list_channels=self.controller.list_channels
                 )
 
-            # Build a measurement dict
-            measurement = {
-                "time": time.time(),
-                "angle": angle,
-                # "torque": ...,
-                # "force": ...,
-            }
-
             if self.current_job is not None:
-                self.eval_buffer.append(measurement)
+                # self.eval_buffer.append(measurement)
 
                 elapsed = time.time() - self.eval_start_time
                 if elapsed >= self.eval_duration_s:
@@ -316,7 +311,7 @@ class StimulationWorker(threading.Thread):
         print(f"[StimulationWorker] Starting evaluation of job {job.job_id}")
         self.current_job = job
         self.eval_start_time = time.time()
-        self.eval_buffer = []
+        # self.eval_buffer = []
 
         # Apply parameters immediately and stimulation continues with new params
         self.controller.apply_parameters(job.params)
@@ -328,39 +323,87 @@ class StimulationWorker(threading.Thread):
         assert self.current_job is not None
         job = self.current_job
 
-        cost = self._compute_cost_from_buffer(self.eval_buffer)
-        extra_data = {
-            "num_samples": len(self.eval_buffer),
-        }
+        cost = self._compute_cost_from_buffer()
+        # extra_data = {
+        #     "num_samples": len(self.eval_buffer),
+        # }
 
         print(f"[StimulationWorker] Finished evaluation of job {job.job_id}")
-        result = StimResult(job_id=job.job_id, cost=cost, extra_data=extra_data)
+        result = StimResult(job_id=job.job_id, cost=cost) # , extra_data=extra_data)
         self.result_callback(result)
 
         # Keep stimulation running with last parameters, just end evaluation
         self.current_job = None
         self.eval_start_time = None
-        self.eval_buffer = []
+        # self.eval_buffer = []
 
     # TODO: Replace this with a real cost function.
-    def _compute_cost_from_buffer(self, buffer: List[Dict]) -> float:
+    def _compute_cost_from_buffer(self) -> float:
         """
         Compute a scalar cost from the collected data during eval_duration_s.
         For now, it uses a dummy example based on angle variance.
         """
-        if not buffer:
-            return 1.0  # something non-catastrophic
+        def get_last_cycles_data(nb_cycles: int = 3) -> List[Dict]:
+            """
+            Extract the last nb_cycles from the data collector buffer.
+            Each cycle is defined as angle going from 0° to 360°.
+            """
+            times_vector = self.data_collector.data.timestamp
+            angles = self.data_collector.data.values[:, DataType.A18]
+            left_power = self.data_collector.data.values[:, DataType.A36]
+            right_power = self.data_collector.data.values[:, DataType.A37]
+            total_power = self.data_collector.data.values[:, DataType.A38]
 
-        angles = np.array([m["angle"] for m in buffer], dtype=float)
+            last_cycles_data = {
+                "times_vector": [],
+                "angles": [],
+                "left_power": [],
+                "right_power": [],
+                "total_power": [],
+            }
+            last_idx = len(angles) - 1
+            cycles_collected = 0
+            last_bound = None
+            while last_idx > 0 and cycles_collected < nb_cycles:
+                current_angle = angles[last_idx]
+                previous_angle = angles[last_idx - 1]
+                nb_rotations = current_angle // (2 * np.pi)
+                if np.sign(current_angle - (nb_rotations * 2 * np.pi)) != np.sign(previous_angle - (nb_rotations * 2 * np.pi)):
+                    if last_bound is None:
+                        # The end of the last cycle was detected
+                        last_bound = last_idx
+                    else:
+                        # The beginning of this cycle was detected, extract data for this cycle
+                        start_idx = last_idx
+                        end_idx = last_bound
+                        last_cycles_data["times_vector"].insert(0, times_vector[start_idx:end_idx])
+                        last_cycles_data["angles"].insert(0, angles[start_idx:end_idx])
+                        last_cycles_data["left_power"].insert(0, left_power[start_idx:end_idx])
+                        last_cycles_data["right_power"].insert(0, right_power[start_idx:end_idx])
+                        last_cycles_data["total_power"].insert(0, total_power[start_idx:end_idx])
+                        last_bound = last_idx
 
-        # Dummy example cost:
-        #  - smaller is better
-        #  - here: we just take 1 / (1 + std(angle)) as a placeholder
-        std_angle = float(np.std(angles))
-        cost = 1.0 / (1.0 + std_angle)
+                cycles_collected = len(last_cycles_data["times_vector"])
+                last_idx -= 1
 
-        # Replace with something meaningful, e.g.:
-        #   cost = tracking_error(force_signal, desired_force_profile)
-        #   cost = -mean_power
-        #   etc.
-        return float(cost)
+            return last_cycles_data
+
+        def get_cost_value(last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
+
+            # Maximize power
+            left_power = np.hstack(last_cycles_data["left_power"])
+            right_power = np.hstack(last_cycles_data["right_power"])
+            total_left_power = -np.sum(left_power ** 2)
+            total_right_power = -np.sum(right_power ** 2)
+
+            # Minimize stimulation intensity
+            right_intensity = self.controller.intensity["biceps_r"]** 2 + self.controller.intensity["triceps_r"]** 2
+            left_intensity = self.controller.intensity["biceps_l"]** 2 + self.controller.intensity["triceps_l"]** 2
+
+            cost = total_left_power + total_right_power + 0.1 * (right_intensity + left_intensity)
+            return float(cost)
+
+        last_cycles_data = get_last_cycles_data()
+        cost = get_cost_value(last_cycles_data)
+
+        return cost
