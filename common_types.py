@@ -7,7 +7,7 @@ from typing import List, Optional, Dict
 @dataclass
 class StimParameters:
     """
-    Single BO sample of stimulation parameters, matching your BayesianOptim:
+    Single BO sample of stimulation parameters:
 
       onset_deg / offset_deg / pulse_intensity / pulse_width
       for each muscle: biceps_r, triceps_r, biceps_l, triceps_l.
@@ -91,4 +91,47 @@ class StimResult:
     job_id: int
     cost: float
     extra_data: Optional[Dict] = None
+
+
+@dataclass
+class AngleSpeedResult:
+    """
+    Result returned by the pedal thread:
+      - job_id: must match the PedalJob
+      - angle: the angle value to give back to the stimulator worker
+      - speed: the speed value to give back to the stimulator worker
+    """
+    job_id: int
+    angle: float
+    speed: float
+
+
+@dataclass
+class PedalParameters:
+    """
+    Single sample of pedal parameters:
+
+      angle / speed / power.
+    """
+
+    angle: float
+    speed: float
+    power: float
+
+    @classmethod
+    def from_flat_vector(cls, x: List[float]) -> "PedalParameters":
+        """
+        Convert vector to PedalParameters instance.
+        """
+        return cls(*x)
+
+    def to_flat_vector(self) -> List[float]:
+        """
+        Convert back to a flat list if needed.
+        """
+        return [
+            self.angle,
+            self.speed,
+            self.power,
+        ]
 

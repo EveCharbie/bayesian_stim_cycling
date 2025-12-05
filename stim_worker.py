@@ -3,7 +3,10 @@ from __future__ import annotations
 import threading
 import queue
 import time
-from typing import Optional, Dict, Callable, List
+from typing import Optional, Dict, Callable, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pedal_worker import PedalWorker
 
 import numpy as np
 import nidaqmx
@@ -77,13 +80,14 @@ class HandCycling2:
         }
 
         # Create stimulator
-        self.stimulator = St(port="COM6", show_log=False)
+        self.stimulator = St(port="COM3", show_log=False)
         self.stimulator.init_channel(
             stimulation_interval=30,
             list_channels=self.list_channels,
         )
 
         # Default stimulation ranges in degrees (will be overridden by BO)
+        # zero = main gauche devant
         self.stimulation_range = {
             "biceps_r": [220.0, 10.0],
             "triceps_r": [20.0, 180.0],
@@ -95,34 +99,16 @@ class HandCycling2:
         self.stim_condition: Dict[str, int] = {}
         self._update_stim_condition()
 
-        # ----------------- Encoder setup ----------------- #
-        local_system = nidaqmx.system.System.local()
-        driver_version = local_system.driver_version
-        print(
-            "DAQmx {0}.{1}.{2}".format(
-                driver_version.major_version,
-                driver_version.minor_version,
-                driver_version.update_version,
-            )
-        )
-        for device in local_system.devices:
-            print(
-                "Device Name: {0}, Product Category: {1}, Product Type: {2}".format(
-                    device.name, device.product_category, device.product_type
-                )
-            )
-            device_mane = device.name
-            self.task = nidaqmx.Task()
-            self.task.ai_channels.add_ai_voltage_chan(device_mane + "/ai14")
-            self.task.start()
+        # Angle-related state (degrees)
+        self._angle_lock = threading.Lock()
+        self.angle = 0.0               # current estimated angle (deg)
+        self.previous_angle = 0.0      # last integrated angle (deg)
+        self.previous_speed = 0.0      # last speed (deg/s)
+        self.previous_time = time.perf_counter()
 
-            self.min_voltage = 1.33
-            max_voltage = 5
-            self.origin = self.task.read() - self.min_voltage
-            self.angle_coeff = 360 / (max_voltage - self.min_voltage)
-            self.actual_voltage = None
-
-        self.angle = 0.0
+        # (optional, for debugging)
+        self.sensix_angle = 0.0        # last real angle from pedal (deg)
+        self.sensix_speed = 0.0        # last real speed from pedal (deg/s)
 
         # ----------------- Start stimulation once ----------------- #
         self.stimulator.start_stimulation(upd_list_channels=self.list_channels)
@@ -160,27 +146,37 @@ class HandCycling2:
         # Recompute condition flags
         self._update_stim_condition()
 
-    # ----------------- Angle reading ----------------- #
-    def get_angle(self) -> float:
+    # ---------- called when pedal worker has a new real sample ----------
+    def update_sensor(self, angle: float, speed: float) -> None:
         """
-        Real angle from encoder.
+        Update the internal sensor state with a new real sample.
+        Angle and speed are expected in degrees and degrees/second.
         """
-        voltage = self.task.read() - self.min_voltage
-        self.actual_voltage = voltage - self.origin
-        self.angle = (
-            360 - (self.actual_voltage * self.angle_coeff)
-            if 0 < self.actual_voltage <= 5 - self.origin
-            else abs(self.actual_voltage) * self.angle_coeff
-        )
-        return self.angle
+        now = time.perf_counter()
+        with self._angle_lock:
+            self.sensix_angle = angle
+            self.sensix_speed = speed
 
-    def fake_angle(self) -> float:
+            # reset integrator to measured state
+            self.previous_angle = angle
+            self.previous_speed = speed
+            self.previous_time = now
+            self.angle = angle
+
+            # print(angle, speed)
+
+    def calculate_angle(self) -> float:
         """
-        For testing without encoder: increase angle by 0.5° per loop and wrap at 360.
+        Integrate the last known speed to get a high-rate angle estimate.
         """
-        temp = self.angle + 0.5
-        self.angle = temp % 360.0
-        return self.angle
+        now = time.perf_counter()
+        with self._angle_lock:
+            dt = now - self.previous_time
+            self.previous_time = now
+
+            self.previous_angle = (self.previous_angle + self.previous_speed * dt) % 360.0
+            self.angle = self.previous_angle
+            return self.angle
 
     # ----------------- Stimulation update ----------------- #
     def update_stimulation_for_current_angle(self) -> bool:
@@ -191,6 +187,8 @@ class HandCycling2:
           True if amplitudes were updated and we should call start_stimulation().
         """
         stim_to_update = False
+        self.angle = self.calculate_angle()
+        print(self.angle)
         for key in self.stimulation_range.keys():
             onset, offset = self.stimulation_range[key]
             cond = self.stim_condition[key]
@@ -247,6 +245,7 @@ class StimulationWorker(threading.Thread):
         result_callback: Callable[[StimResult], None],
         eval_duration_s: float = 2.0,
         name: str = "StimulationWorker",
+        pedal_worker: Optional["PedalWorker"] = None,
     ):
         super().__init__(name=name, daemon=True)
         self.job_queue = job_queue
@@ -254,13 +253,26 @@ class StimulationWorker(threading.Thread):
         self.result_callback = result_callback
         self.eval_duration_s = eval_duration_s
 
-        # Single hardware controller that runs continuously
+        # Controller that runs continuously
         self.controller = HandCycling2()
 
         # State for current BO evaluation
-        self.current_job: Optional[StimJob] = None
-        self.eval_start_time: Optional[float] = None
-        self.eval_buffer: List[Dict] = []
+        self.current_bo_job: Optional[StimJob] = None
+        self.bo_eval_start_time: Optional[float] = None
+        self.bo_eval_buffer: List[Dict] = []
+
+        # Optional third worker that provides pedal data
+        self.pedal_worker = pedal_worker
+        if self.pedal_worker is not None:
+            # Register to receive real pedal samples
+            self.pedal_worker.register_callback(self.handle_pedal_update)
+
+    def handle_pedal_update(self, angle: float, speed: float, power: float) -> None:
+        """
+        Very lightweight: just update the controller's sensor state.
+        """
+        self.controller.update_sensor(angle, speed)
+        # self._last_power = power # If power in the cost
 
     def run(self) -> None:
         while not self.stop_event.is_set():
@@ -271,16 +283,10 @@ class StimulationWorker(threading.Thread):
                         self.job_queue.task_done()
                         return
 
-                    # New BO evaluation request
                     self._start_new_evaluation(job)
                     self.job_queue.task_done()
             except queue.Empty:
                 pass
-
-            # Get the pedal angle
-            # angle = self.controller.fake_angle()
-            angle = self.controller.get_angle()
-            # print(angle)
 
             if self.controller.update_stimulation_for_current_angle():
                 # Only call when intensity or pulse width changed
@@ -288,21 +294,18 @@ class StimulationWorker(threading.Thread):
                     upd_list_channels=self.controller.list_channels
                 )
 
-            # Build a measurement dict
             measurement = {
                 "time": time.time(),
-                "angle": angle,
-                # "torque": ...,
-                # "force": ...,
+                "angle": float(self.controller.angle),
             }
 
-            if self.current_job is not None:
-                self.eval_buffer.append(measurement)
-
-                elapsed = time.time() - self.eval_start_time
-                if elapsed >= self.eval_duration_s:
+            if self.current_bo_job is not None:
+                self.bo_eval_buffer.append(measurement)
+                elapsed_eval = time.time() - self.bo_eval_start_time
+                if elapsed_eval >= self.eval_duration_s:
                     self._finish_current_evaluation()
 
+            # Loop timing; you can reduce or even remove this if you want
             time.sleep(0.001)
 
     def _start_new_evaluation(self, job: StimJob) -> None:
@@ -310,9 +313,9 @@ class StimulationWorker(threading.Thread):
         Called when BO sends a new parameter set.
         """
         print(f"[StimulationWorker] Starting evaluation of job {job.job_id}")
-        self.current_job = job
-        self.eval_start_time = time.time()
-        self.eval_buffer = []
+        self.current_bo_job = job
+        self.bo_eval_start_time = time.time()
+        self.bo_eval_buffer = []
 
         # Apply parameters immediately and stimulation continues with new params
         self.controller.apply_parameters(job.params)
@@ -321,12 +324,12 @@ class StimulationWorker(threading.Thread):
         """
         Compute cost from buffered data and report back to BO.
         """
-        assert self.current_job is not None
-        job = self.current_job
+        assert self.current_bo_job is not None
+        job = self.current_bo_job
 
-        cost = self._compute_cost_from_buffer(self.eval_buffer)
+        cost = self._compute_cost_from_buffer(self.bo_eval_buffer)
         extra_data = {
-            "num_samples": len(self.eval_buffer),
+            "num_samples": len(self.bo_eval_buffer),
         }
 
         print(f"[StimulationWorker] Finished evaluation of job {job.job_id}")
@@ -334,9 +337,9 @@ class StimulationWorker(threading.Thread):
         self.result_callback(result)
 
         # Keep stimulation running with last parameters, just end evaluation
-        self.current_job = None
-        self.eval_start_time = None
-        self.eval_buffer = []
+        self.current_bo_job = None
+        self.bo_eval_start_time = None
+        self.bo_eval_buffer = []
 
     # TODO: Replace this with a real cost function.
     def _compute_cost_from_buffer(self, buffer: List[Dict]) -> float:

@@ -5,6 +5,7 @@ import queue
 
 from bo_worker import BayesianOptimizationWorker, build_search_space
 from stim_worker import StimulationWorker
+from pedal_worker import PedalWorker
 from common_types import StimJob
 
 
@@ -23,15 +24,21 @@ def main():
         space=space,
     )
 
-    # Create stimulation worker and connect callback
+    # Create pedal worker (third worker) that provides the crank angle
+    pedal_worker = PedalWorker(stop_event=stop_event)
+
+    # Create stimulation worker and connect callback.
+    # We also pass a reference to the pedal_worker so that it can use
+    # the angle coming from the pedal device instead of the NI-DAQ.
     stim_worker = StimulationWorker(
         job_queue=job_queue,
         stop_event=stop_event,
         result_callback=bo_worker.handle_result,
-        eval_duration_s=10.0,  # seconds per cost fun evaluation
+        eval_duration_s=10.0,
+        pedal_worker=pedal_worker,
     )
 
-    # Start both threads
+    pedal_worker.start()
     stim_worker.start()
     bo_worker.start()
 
@@ -44,9 +51,12 @@ def main():
         # Signal all threads to stop
         stop_event.set()
 
-        # Quit stimulation worker
+        # Quit stimulation worker (sentinel for the job queue)
         job_queue.put(None)
+
+        # Join workers
         stim_worker.join()
+        pedal_worker.join()
 
         print("[Main] All threads stopped.")
 
