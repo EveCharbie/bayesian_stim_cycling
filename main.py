@@ -23,7 +23,7 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
     # space = build_search_space()
 
     # Create Bayesian optimization worker
-    # bo_worker = BayesianOptimizationWorker(
+    # worker_bo = BayesianOptimizationWorker(
     #     job_queue=job_queue,
     #     stop_event=stop_event,
     #     space=space,
@@ -31,7 +31,7 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
     # )
 
     # Create pedal worker (third worker) that provides the crank angle
-    pedal_worker = PedalWorker(
+    worker_pedal = PedalWorker(
         stop_event=stop_event,
         data_collector=data_collector,
     )
@@ -39,17 +39,14 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
     # Create stimulation worker and connect callback.
     # We also pass a reference to the pedal_worker so that it can use
     # the angle coming from the pedal device instead of the NI-DAQ.
-    # stim_worker = StimulationWorker(
-    #     job_queue=job_queue,
-    #     stop_event=stop_event,
-    #     result_callback=bo_worker.handle_result,
-    #     eval_duration_s=10.0,  # seconds per cost fun evaluation
-    #     data_collector=data_collector,
-    #     pedal_worker=pedal_worker,
-    # )
+    worker_stim = StimulationWorker(
+        worker_pedal=worker_pedal,
+    )
 
-    threading.Thread(target=pedal_worker.run, daemon=True).start()
-    # stim_worker.start()
+    # I think latest_angle should be put in a Queue, it does not make sense that information is shared between threads
+
+    threading.Thread(target=worker_pedal.run, daemon=True).start()
+    threading.Thread(target=worker_stim.run, daemon=True).start()
     # bo_worker.start()
 
     # Keep main thread alive
@@ -57,7 +54,8 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
         while True:
             time.sleep(5)
     except KeyboardInterrupt:
-        pedal_worker.stop()
+        worker_pedal.stop()
+        worker_stim.stop()
 
     # try:
     #     # Wait for BO to finish
