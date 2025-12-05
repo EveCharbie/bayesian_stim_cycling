@@ -19,57 +19,67 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
     job_queue: "queue.Queue[StimJob | None]" = queue.Queue()
     stop_event = threading.Event()
 
-    # Build BO search space
-    space = build_search_space()
+    # # Build BO search space
+    # space = build_search_space()
 
     # Create Bayesian optimization worker
-    bo_worker = BayesianOptimizationWorker(
-        job_queue=job_queue,
-        stop_event=stop_event,
-        space=space,
-        data_collector=data_collector,
-    )
+    # bo_worker = BayesianOptimizationWorker(
+    #     job_queue=job_queue,
+    #     stop_event=stop_event,
+    #     space=space,
+    #     data_collector=data_collector,
+    # )
 
     # Create pedal worker (third worker) that provides the crank angle
-    pedal_worker = PedalWorker(stop_event=stop_event)
+    pedal_worker = PedalWorker(
+        stop_event=stop_event,
+        data_collector=data_collector,
+    )
 
     # Create stimulation worker and connect callback.
     # We also pass a reference to the pedal_worker so that it can use
     # the angle coming from the pedal device instead of the NI-DAQ.
-    stim_worker = StimulationWorker(
-        job_queue=job_queue,
-        stop_event=stop_event,
-        result_callback=bo_worker.handle_result,
-        eval_duration_s=10.0,  # seconds per cost fun evaluation
-        data_collector=data_collector,
-        pedal_worker=pedal_worker,
-    )
+    # stim_worker = StimulationWorker(
+    #     job_queue=job_queue,
+    #     stop_event=stop_event,
+    #     result_callback=bo_worker.handle_result,
+    #     eval_duration_s=10.0,  # seconds per cost fun evaluation
+    #     data_collector=data_collector,
+    #     pedal_worker=pedal_worker,
+    # )
 
-    pedal_worker.start()
-    stim_worker.start()
-    bo_worker.start()
+    threading.Thread(target=pedal_worker.run, daemon=True).start()
+    # stim_worker.start()
+    # bo_worker.start()
 
+    # Keep main thread alive
     try:
-        # Wait for BO to finish
-        bo_worker.join()
+        while True:
+            time.sleep(5)
     except KeyboardInterrupt:
-        print("[Main] KeyboardInterrupt detected, stopping...")
-    finally:
-        # Signal all threads to stop
-        stop_event.set()
+        pedal_worker.stop()
 
-        # Quit stimulation worker (sentinel for the job queue)
-        job_queue.put(None)
+    # try:
+    #     # Wait for BO to finish
+    #     bo_worker.join()
+    # except KeyboardInterrupt:
+    #     print("[Main] KeyboardInterrupt detected, stopping...")
+    # finally:
+    #     # Signal all threads to stop
+    #     stop_event.set()
 
-        # Join workers
-        stim_worker.join()
-        pedal_worker.join()
+    #     # Quit stimulation worker (sentinel for the job queue)
+    #     job_queue.put(None)
 
-        print("[Main] All threads stopped.")
+    #     # Join workers
+    #     stim_worker.join()
+    #     pedal_worker.join()
 
-        if bo_worker.best_result is not None:
-            print("[Main] Best x:", bo_worker.best_result.x)
-            print("[Main] Best cost:", bo_worker.best_result.fun)
+    #     print("[Main] All threads stopped.")
+
+    #     if bo_worker.best_result is not None:
+    #         print("[Main] Best x:", bo_worker.best_result.x)
+    #         print("[Main] Best cost:", bo_worker.best_result.fun)
 
 
 if __name__ == "__main__":

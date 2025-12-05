@@ -18,9 +18,16 @@ class PedalWorker(threading.Thread):
     samples to a callback whenever the real angle changes.
     """
 
-    def __init__(self, stop_event: threading.Event, name: str = "PedalWorker") -> None:
+    def __init__(
+            self,
+            stop_event: threading.Event,
+            data_collector: DataCollector,
+            name: str = "PedalWorker",
+    ) -> None:
         super().__init__(name=name, daemon=True)
         self.stop_event = stop_event
+        self._keep_running = True
+        self.data_collector = data_collector
 
         # Shared state (protected by _lock)
         self._lock = threading.Lock()
@@ -48,9 +55,10 @@ class PedalWorker(threading.Thread):
         self._logger.info("Pedal device connected.")
 
         # ---- Start data collector ----
-        self.data_collector = DataCollector(self.device)
-        self.data_collector.start()
-        self._logger.info("DataCollector started.")
+        # todo: move outside ?
+        # self.data_collector = DataCollector(self.device)
+        # self.data_collector.start()
+        # self._logger.info("DataCollector started.")
 
     # ------------------------------------------------------------------
     # Public API
@@ -77,24 +85,29 @@ class PedalWorker(threading.Thread):
     # ------------------------------------------------------------------
     # Thread loop
     # ------------------------------------------------------------------
+    def wait(self):
+        time.sleep(0.005)
+        print("None -- sleep 0.005")
+
     def run(self) -> None:
         self._logger.info("Pedal worker loop started.")
         prev_angle = None
         prev_speed = None
 
         try:
-            while not self.stop_event.is_set():
+            while self._keep_running:
                 data = getattr(self.data_collector, "data", None)
                 if data is None or getattr(data, "empty", False):
-                    time.sleep(0.005)
+                    self.wait()
                     continue
 
-                # angle -> col 18, speed -> col 35, power -> col 38
                 values = data.values
+                if values.size == 0:
+                    self.wait()
+
+                # angle -> col 18, speed -> col 35, power -> col 38
                 angle = math.degrees(float(values[-1, 18])) % 360
                 speed = math.degrees(float(values[-1, 35]))
-                #print("angle: ", angle)
-                #print("speed: ", speed)
 
                 power = 0.0
                 try:
@@ -106,6 +119,7 @@ class PedalWorker(threading.Thread):
                 if changed:
                     prev_angle = angle
                     prev_speed = speed
+                    print("angle: ", angle)
 
                 # Update shared state
                 with self._lock:
@@ -137,3 +151,6 @@ class PedalWorker(threading.Thread):
                 self._logger.exception("Error while closing pedal device: %s", exc)
 
             self._logger.info("Pedal worker stopped.")
+
+    def stop(self):
+        self._keep_running = False
