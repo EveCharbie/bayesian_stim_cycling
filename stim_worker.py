@@ -42,21 +42,10 @@ class HandCycling2:
             # "biceps_l",
             # "triceps_l",
         ]
-        self.list_channels = [
-            Ch(
-                mode=Modes.SINGLE,
-                no_channel=i + 1,
-                amplitude=0,  # Intensity
-                pulse_width=350,
-                name=channel_muscle_name[i],
-                device_type=Device.Rehastim2,
-            )
-            for i in range(len(channel_muscle_name))
-        ]
 
         # Default intensity for each muscle (will be overridden by BO)
         self.intensity = {
-            "biceps_r": 0,
+            "biceps_r": 10,
             # "triceps_r": 10,
             # "biceps_l": 10,
             # "triceps_l": 10,
@@ -84,13 +73,6 @@ class HandCycling2:
             # "triceps_l": False,
         }
 
-        # Create stimulator
-        self.stimulator = St(port="COM3", show_log=False)
-        self.stimulator.init_channel(
-            stimulation_interval=30,
-            list_channels=self.list_channels,
-        )
-
         # Default stimulation ranges in degrees (will be overridden by BO)
         # zero = main gauche devant
         self.stimulation_range = {
@@ -100,8 +82,27 @@ class HandCycling2:
             # "triceps_l": [200.0, 360.0],
         }
 
+        self.list_channels = [
+            Ch(
+                mode=Modes.SINGLE,
+                no_channel=i + 1,
+                amplitude=self.intensity[muscle_name],  # Intensity
+                pulse_width=350,
+                name=channel_muscle_name[i],
+                device_type=Device.Rehastim2,
+            )
+            for i, muscle_name in enumerate(channel_muscle_name)
+        ]
+
+        # Create stimulator
+        self.stimulator = St(port="COM3", show_log=False)
+        self.stimulator.init_channel(
+            stimulation_interval=30,
+            list_channels=self.list_channels,
+        )
+
         # Condition flags for wrap-around
-        self.stim_condition: Dict[str, int] = {}
+        # self.stim_condition: Dict[str, int] = {}
         # self._update_stim_condition()
 
         # Angle-related state (degrees)
