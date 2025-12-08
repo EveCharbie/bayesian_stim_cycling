@@ -67,27 +67,3 @@ class StimParameters:
             # self.pulse_intensity_triceps_l,
             # self.pulse_width_triceps_l,
         ]
-
-
-# @dataclass
-# class StimJob:
-#     """
-#     A job requested by the optimizer:
-#       - job_id: unique ID so we can match result to request
-#       - params: stimulation parameters to test on hardware
-#     """
-#     job_id: int
-#     params: StimParameters
-
-
-# @dataclass
-# class StimResult:
-#     """
-#     Result returned by the stimulation thread:
-#       - job_id: must match the StimJob
-#       - cost: scalar value to give back to the optimizer
-#       - extra_data: optional (e.g., raw sensor data, logs)
-#     """
-#     job_id: int
-#     cost: float
-#     extra_data: Optional[Dict] = None

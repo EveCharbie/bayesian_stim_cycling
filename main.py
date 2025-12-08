@@ -5,7 +5,6 @@ This code should be run in `run` not `debug` (memory access issues).
 from __future__ import annotations
 
 import threading
-import queue
 import time
 import logging
 

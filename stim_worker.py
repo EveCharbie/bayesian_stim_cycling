@@ -114,14 +114,6 @@ class HandCycling2:
         # ----------------- Start stimulation once ----------------- #
         self.stimulator.start_stimulation(upd_list_channels=self.list_channels)
 
-
-    # ------------ Apply parameters from BO (called only when BO updates) ------------ #
-    # def _update_stim_condition(self):
-    #     for key in self.stimulation_range.keys():
-    #         self.stim_condition[key] = (
-    #             1 if self.stimulation_range[key][0] < self.stimulation_range[key][1] else 0
-    #         )
-
     def apply_parameters(self, params: StimParameters) -> None:
         """
         Apply BO parameters to:
@@ -132,14 +124,14 @@ class HandCycling2:
         for muscle in self.MUSCLE_KEYS:
             onset = int(getattr(params, f"onset_deg_{muscle}"))
             offset = int(getattr(params, f"offset_deg_{muscle}"))
-            # intensity = int(getattr(params, f"pulse_intensity_{muscle}"))
+            # intensity = int(getattr(params, f"pulse_intensity_{muscle}"))  # TODO: uncomment here to stim
             pulse_width = int(getattr(params, f"pulse_width_{muscle}"))
 
             # Update angle range [onset, offset]
             self.stimulation_range[muscle] = [onset, offset]
 
             # # Update intensity
-            # self.intensity[muscle] = intensity
+            # self.intensity[muscle] = intensity  # TODO: uncomment here to stim
 
             # Update pulse width
             self.pulse_width[muscle] = pulse_width

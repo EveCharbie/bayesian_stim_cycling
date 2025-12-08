@@ -56,18 +56,6 @@ class PedalWorker:
             time.sleep(0.1)
         self._logger.info("Pedal device connected.")
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-    def register_callback(self, cb: Callable[[float, float, float], None]) -> None:
-        """
-        Called (by StimulationWorker) to receive new real samples.
-
-        The callback is invoked from the PedalWorker thread, so it must be
-        lightweight and non-blocking.
-        """
-        self._callback = cb
-
     def get_latest_angle(self) -> float:
         """Return the most recent pedal angle (in degrees)."""
         with self._lock:
@@ -78,9 +66,6 @@ class PedalWorker:
         with self._lock:
             return self._angle, self._speed, self._power
 
-    # ------------------------------------------------------------------
-    # Thread loop
-    # ------------------------------------------------------------------
     @staticmethod
     def wait():
         time.sleep(0.05)
@@ -104,20 +89,8 @@ class PedalWorker:
                 else:
 
                     # angle -> col 18, speed -> col 35, power -> col 38
-                    try:
-                        angle = math.degrees(float(values[-1, DataType.A18.value])) % 360
-                        speed = math.degrees(float(values[-1, DataType.A35.value]))
-                    except:
-                        print(values)
-                        print(values.shape)
-                        print(values.size)
-                        print(values[-1, DataType.A18.value])
-
-                    power = 0.0
-                    try:
-                        power = float(values[-1, DataType.A38.value])
-                    except IndexError:
-                        pass
+                    angle = math.degrees(float(values[-1, DataType.A18.value])) % 360
+                    speed = math.degrees(float(values[-1, DataType.A35.value]))
 
                     changed = (angle != prev_angle) or (speed != prev_speed)
                     if changed:
@@ -129,14 +102,6 @@ class PedalWorker:
                     with self._lock:
                         self._angle = angle
                         self._speed = speed
-                        self._power = power
-
-                    # # Push to consumer if there is a new sample
-                    # if changed and self._callback is not None:
-                    #     try:
-                    #         self._callback(angle, speed, power)
-                    #     except Exception:
-                    #         self._logger.exception("Error in pedal callback")
 
                     time.sleep(0.005)
 

@@ -89,24 +89,6 @@ class BayesianOptimizationWorker:
                 space.append(Real(low, high, name=dim_name))
         self.space = space
 
-    # # Called by StimulationWorker when a result is ready
-    # def handle_result(self, result) -> None:
-    #     with self._result_lock:
-    #         self._results[result.job_id] = result
-    #         self._result_available.notify_all()
-
-    # def _submit_job_and_wait_for_cost(self, params: StimParameters) -> float:
-    #     job_id = next(self._job_id_counter)
-    #     job = StimJob(job_id=job_id, params=params)
-    #
-    #     self.job_queue.put(job)
-    #
-    #     with self._result_lock:
-    #         while job_id not in self._results:
-    #             self._result_available.wait()
-    #         result = self._results.pop(job_id)
-    #     return float(result.cost)
-
     def get_num_cycles(self) -> int:
         """
         Count the number of complete cycles in the data collector buffer.
