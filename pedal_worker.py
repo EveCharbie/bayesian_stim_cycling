@@ -119,7 +119,7 @@ class PedalWorker(threading.Thread):
                 if changed:
                     prev_angle = angle
                     prev_speed = speed
-                    print("angle: ", angle)
+                    # print("angle: ", angle)
 
                 # Update shared state
                 with self._lock:

@@ -12,3 +12,7 @@
 
 ### Optimization:
 - skopt: conda install conda-forge::scikit-optimize (https://anaconda.org/conda-forge/scikit-optimize)
+
+### Automation of the opening/closing of the Sensix software
+DID NOT WORK since the sensix app is not standard
+- pywinauto: conda install -c conda-forge pywinauto

@@ -191,46 +191,55 @@ class HandCycling2:
             return (onset <= self.angle) and (self.angle <= offset)
         elif onset > offset:
             # The angle wraps around 0
-            return (onset >= self.angle) and (self.angle >= offset)
+            return not ((onset >= self.angle) and (self.angle >= offset))
         else:
             raise RuntimeError("The onset and offset have the same value.")
 
-    def update_stimulation_for_current_angle(self) -> bool:
+    def update_stimulation_for_current_angle(self) -> tuple[bool, bool]:
         """
         One pass of your original while-loop logic.
 
         Returns:
           True if amplitudes were updated and we should call start_stimulation().
         """
-        stim_to_update = False
-        self.angle = self.worker_pedal.latest_angle
+        should_activate_stim = False
+        should_deactivate_stim = False
+        self.angle = self.worker_pedal.get_latest_angle()
         for key in self.stimulation_range.keys():
             onset, offset = self.stimulation_range[key]
             # cond = self.stim_condition[key]
             is_stimulation_active = self.stimulation_state[key]
             ch_idx = self.channel_number[key] - 1
             channel = self.list_channels[ch_idx]
-            print("onset: ", onset, "offset: ", offset, "angle", self.angle)
 
             if self.angle > 360.0 or self.angle < 0:
                 raise RuntimeError("EEEEEEEEEEEEEEror")
 
             # Range wraps around 360 (e.g., [220, 10])
-            if not is_stimulation_active and self.should_stimulation_be_active(onset, offset):
+            should_be_active = self.should_stimulation_be_active(onset, offset)
+            print(
+                "onset: ", onset,
+                "offset: ", offset,
+                "angle", self.angle,
+                'is_active: ', is_stimulation_active,
+                'should_be_active: ', should_be_active,
+            )
+
+            if not is_stimulation_active and should_be_active:
                 # Start stimulation
                 self.stimulation_state[key] = True
                 channel.set_amplitude(self.intensity[key])
                 channel.set_pulse_width(self.pulse_width[key])
-                stim_to_update = True
+                should_activate_stim = True
             elif is_stimulation_active and not self.should_stimulation_be_active(onset, offset):
                 # Stop stimulation
                 self.stimulation_state[key] = False
                 channel.set_amplitude(0.0)
-                stim_to_update = True
+                should_deactivate_stim = True
             else:
                 continue
 
-        return stim_to_update
+        return should_activate_stim, should_deactivate_stim
 
 
 class StimulationWorker:
@@ -265,7 +274,7 @@ class StimulationWorker:
         # self.eval_duration_s = eval_duration_s
 
         # Controller that runs continuously
-        self.controller = HandCycling2()
+        self.controller = HandCycling2(worker_pedal)
 
         # State for current BO evaluation
         self.current_job: Optional[StimJob] = None
@@ -293,8 +302,10 @@ class StimulationWorker:
             # Apply parameters immediately and stimulation continues with new params
             # self.controller.apply_parameters(job.params)
 
-            if self.controller.update_stimulation_for_current_angle():
+            should_activate_stim, should_deactivate_stim = self.controller.update_stimulation_for_current_angle()
+            if should_deactivate_stim or should_activate_stim:
                 # Only call when intensity or pulse width changed
+                # Start is misleading, it should be called update
                 self.controller.stimulator.start_stimulation(
                     upd_list_channels=self.controller.list_channels
                 )
@@ -309,7 +320,9 @@ class StimulationWorker:
             time.sleep(0.001)
 
     def stop(self):
+        self.controller.stimulator.pause_stimulation()
         self._keep_running = False
+
 
     # def _start_new_evaluation(self, job: StimJob) -> None:
     #     """
