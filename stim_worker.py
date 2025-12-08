@@ -7,6 +7,8 @@ from typing import Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from pedal_worker import PedalWorker
 
+from common_types import StimParameters
+
 from pysciencemode import Rehastim2 as St
 from pysciencemode import Channel as Ch
 from pysciencemode import Device, Modes
@@ -21,7 +23,12 @@ class HandCycling2:
     BO updates only the stimulation parameters.
     """
 
-    MUSCLE_KEYS = ["biceps_r", "triceps_r", "biceps_l", "triceps_l"]
+    MUSCLE_KEYS = [
+        "biceps_r",
+        # "triceps_r",
+        # "biceps_l",
+        # "triceps_l",
+    ]
 
     def __init__(self, worker_pedal):
 
@@ -115,7 +122,7 @@ class HandCycling2:
     #             1 if self.stimulation_range[key][0] < self.stimulation_range[key][1] else 0
     #         )
 
-    def apply_parameters(self, params) -> None:
+    def apply_parameters(self, params: StimParameters) -> None:
         """
         Apply BO parameters to:
           - stimulation_range (onset/offset)
@@ -125,37 +132,37 @@ class HandCycling2:
         for muscle in self.MUSCLE_KEYS:
             onset = int(getattr(params, f"onset_deg_{muscle}"))
             offset = int(getattr(params, f"offset_deg_{muscle}"))
-            intensity = int(getattr(params, f"pulse_intensity_{muscle}"))
+            # intensity = int(getattr(params, f"pulse_intensity_{muscle}"))
             pulse_width = int(getattr(params, f"pulse_width_{muscle}"))
 
             # Update angle range [onset, offset]
             self.stimulation_range[muscle] = [onset, offset]
 
-            # Update intensity & pulse width
-            self.intensity[muscle] = intensity
+            # # Update intensity
+            # self.intensity[muscle] = intensity
 
             # Update pulse width
             self.pulse_width[muscle] = pulse_width
 
 
-    # ---------- called when pedal worker has a new real sample ----------
-    def update_sensor(self, angle: float, speed: float) -> None:
-        """
-        Update the internal sensor state with a new real sample.
-        Angle and speed are expected in degrees and degrees/second.
-        """
-        now = time.perf_counter()
-        with self._angle_lock:
-            self.sensix_angle = angle
-            self.sensix_speed = speed
-
-            # reset integrator to measured state
-            self.previous_angle = angle
-            self.previous_speed = speed
-            self.previous_time = now
-            self.angle = angle
-
-            # print(angle, speed)
+    # # ---------- called when pedal worker has a new real sample ----------
+    # def update_sensor(self, angle: float, speed: float) -> None:
+    #     """
+    #     Update the internal sensor state with a new real sample.
+    #     Angle and speed are expected in degrees and degrees/second.
+    #     """
+    #     now = time.perf_counter()
+    #     with self._angle_lock:
+    #         self.sensix_angle = angle
+    #         self.sensix_speed = speed
+    #
+    #         # reset integrator to measured state
+    #         self.previous_angle = angle
+    #         self.previous_speed = speed
+    #         self.previous_time = now
+    #         self.angle = angle
+    #
+    #         # print(angle, speed)
 
     # def calculate_angle(self) -> float:
     #     """
@@ -171,7 +178,6 @@ class HandCycling2:
     #         print("Calculated angle :", self.previous_angle)
     #         return self.angle
 
-    # ----------------- Stimulation update ----------------- #
     def should_stimulation_be_active(self, onset: float, offset: float) -> bool:
         if onset < offset:
             # The range does not wrap around 0
@@ -204,13 +210,13 @@ class HandCycling2:
 
             # Range wraps around 360 (e.g., [220, 10])
             should_be_active = self.should_stimulation_be_active(onset, offset)
-            print(
-                "onset: ", onset,
-                "offset: ", offset,
-                "angle", self.angle,
-                'is_active: ', is_stimulation_active,
-                'should_be_active: ', should_be_active,
-            )
+            # print(
+            #     "onset: ", onset,
+            #     "offset: ", offset,
+            #     "angle", self.angle,
+            #     'is_active: ', is_stimulation_active,
+            #     'should_be_active: ', should_be_active,
+            # )
 
             if not is_stimulation_active and should_be_active:
                 # Start stimulation
@@ -231,15 +237,7 @@ class HandCycling2:
 
 class StimulationWorker:
     """
-    Thread that:
-      - keeps stimulation running continuously using a while-loop structure
-      - whenever a new StimJob arrives, it:
-          * applies the new parameters ONCE
-          * collects data for an evaluation window (eval_duration_s)
-          * computes a cost
-          * sends StimResult back via callback
-
-    Stimulation NEVER stops; only parameters and evaluation windows change.
+    Thread that keeps stimulation running continuously using a while-loop structure.
     """
 
     def __init__(
@@ -255,23 +253,9 @@ class StimulationWorker:
         # Worker that provides pedal data
         self.worker_pedal = worker_pedal
 
-        # State for current BO evaluation
-        # self.eval_start_time: Optional[float] = None
-        # self.eval_buffer: List[Dict] = []
-
-        # if self.worker_pedal is not None:
-        #     # Register to receive real pedal samples
-        #     self.worker_pedal.register_callback(self.handle_pedal_update)
-
     def run(self) -> None:
 
-        # Clear the data collector buffer
-        self.worker_pedal.data_collector.clear()
-
         while self._keep_running:
-
-            # Apply parameters immediately and stimulation continues with new params
-            # self.controller.apply_parameters(job.params)
 
             should_activate_stim, should_deactivate_stim = self.controller.update_stimulation_for_current_angle()
             if should_deactivate_stim or should_activate_stim:
@@ -281,117 +265,9 @@ class StimulationWorker:
                     upd_list_channels=self.controller.list_channels
                 )
 
-            # elapsed = time.time() - self.eval_start_time
-            # if elapsed >= self.eval_duration_s:
-            #     self._finish_current_evaluation()
-
             time.sleep(0.001)
 
     def stop(self):
         self.controller.stimulator.pause_stimulation()
         self._keep_running = False
 
-
-    # def _start_new_evaluation(self, job: StimJob) -> None:
-    #     """
-    #     Called when BO sends a new parameter set.
-    #     """
-    #     print(f"[StimulationWorker] Starting evaluation of job {job.job_id}")
-    #     self.current_bo_job = job
-    #     self.bo_eval_start_time = time.time()
-    #     # self.eval_buffer = []
-    #
-    #     # Apply parameters immediately and stimulation continues with new params
-    #     self.controller.apply_parameters(job.params)
-
-    # def _finish_current_evaluation(self) -> None:
-    #     """
-    #     Compute cost from buffered data and report back to BO.
-    #    """
-    #     assert self.current_bo_job is not None
-    #     job = self.current_bo_job
-    #
-    #     cost = self._compute_cost_from_buffer()
-    #     # extra_data = {
-    #     #     "num_samples": len(self.eval_buffer),
-    #     # }
-    #
-    #     print(f"[StimulationWorker] Finished evaluation of job {job.job_id}")
-    #     result = StimResult(job_id=job.job_id, cost=cost) # , extra_data=extra_data)
-    #     self.result_callback(result)
-    #
-    #     # Keep stimulation running with last parameters, just end evaluation
-    #     self.current_bo_job = None
-    #     self.bo_eval_start_time = None
-    #     # self.eval_buffer = []
-
-    # # TODO: Replace this with a real cost function.
-    # def _compute_cost_from_buffer(self) -> float:
-    #    """
-    #    Compute a scalar cost from the collected data during eval_duration_s.
-    #    For now, it uses a dummy example based on angle variance.
-    #    """
-    #    def get_last_cycles_data(nb_cycles: int = 3) -> List[Dict]:
-    #         """
-    #         Extract the last nb_cycles from the data collector buffer.
-    #         Each cycle is defined as angle going from 0° to 360°.
-    #         """
-    #         times_vector = self.data_collector.data.timestamp
-    #         angles = self.data_collector.data.values[:, DataType.A18]
-    #         left_power = self.data_collector.data.values[:, DataType.A36]
-    #         right_power = self.data_collector.data.values[:, DataType.A37]
-    #         total_power = self.data_collector.data.values[:, DataType.A38]
-    #
-    #         last_cycles_data = {
-    #             "times_vector": [],
-    #             "angles": [],
-    #             "left_power": [],
-    #             "right_power": [],
-    #             "total_power": [],
-    #         }
-    #         last_idx = len(angles) - 1
-    #         cycles_collected = 0
-    #         last_bound = None
-    #         while last_idx > 0 and cycles_collected < nb_cycles:
-    #             current_angle = angles[last_idx]
-    #             previous_angle = angles[last_idx - 1]
-    #             nb_rotations = current_angle // (2 * np.pi)
-    #             if np.sign(current_angle - (nb_rotations * 2 * np.pi)) != np.sign(previous_angle - (nb_rotations * 2 * np.pi)):
-    #                 if last_bound is None:
-    #                     # The end of the last cycle was detected
-    #                     last_bound = last_idx
-    #                 else:
-    #                     # The beginning of this cycle was detected, extract data for this cycle
-    #                     start_idx = last_idx
-    #                     end_idx = last_bound
-    #                     last_cycles_data["times_vector"].insert(0, times_vector[start_idx:end_idx])
-    #                     last_cycles_data["angles"].insert(0, angles[start_idx:end_idx])
-    #                     last_cycles_data["left_power"].insert(0, left_power[start_idx:end_idx])
-    #                     last_cycles_data["right_power"].insert(0, right_power[start_idx:end_idx])
-    #                     last_cycles_data["total_power"].insert(0, total_power[start_idx:end_idx])
-    #                     last_bound = last_idx
-    #
-    #             cycles_collected = len(last_cycles_data["times_vector"])
-    #             last_idx -= 1
-    #
-    #         return last_cycles_data
-
-    #     def get_cost_value(last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
-    #
-    #         # Maximize power
-    #         left_power = np.hstack(last_cycles_data["left_power"])
-    #         right_power = np.hstack(last_cycles_data["right_power"])
-    #         total_left_power = -np.sum(left_power ** 2)
-    #         total_right_power = -np.sum(right_power ** 2)
-    #
-    #         # Minimize stimulation intensity
-    #         right_intensity = self.controller.intensity["biceps_r"]** 2 + self.controller.intensity["triceps_r"]** 2
-    #         left_intensity = self.controller.intensity["biceps_l"]** 2 + self.controller.intensity["triceps_l"]** 2
-    #
-    #         cost = total_left_power + total_right_power + 0.1 * (right_intensity + left_intensity)
-    #         return float(cost)
-    #
-    #     last_cycles_data = get_last_cycles_data()
-    #     cost = get_cost_value(last_cycles_data)
-    #
-    #     return cost

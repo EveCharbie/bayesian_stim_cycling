@@ -19,23 +19,23 @@ class StimParameters:
     pulse_intensity_biceps_r: float
     pulse_width_biceps_r: float
 
-    # Right triceps
-    onset_deg_triceps_r: float
-    offset_deg_triceps_r: float
-    pulse_intensity_triceps_r: float
-    pulse_width_triceps_r: float
+    # # Right triceps
+    # onset_deg_triceps_r: float
+    # offset_deg_triceps_r: float
+    # pulse_intensity_triceps_r: float
+    # pulse_width_triceps_r: float
 
-    # Left biceps
-    onset_deg_biceps_l: float
-    offset_deg_biceps_l: float
-    pulse_intensity_biceps_l: float
-    pulse_width_biceps_l: float
+    # # Left biceps
+    # onset_deg_biceps_l: float
+    # offset_deg_biceps_l: float
+    # pulse_intensity_biceps_l: float
+    # pulse_width_biceps_l: float
 
-    # Left triceps
-    onset_deg_triceps_l: float
-    offset_deg_triceps_l: float
-    pulse_intensity_triceps_l: float
-    pulse_width_triceps_l: float
+    # # Left triceps
+    # onset_deg_triceps_l: float
+    # offset_deg_triceps_l: float
+    # pulse_intensity_triceps_l: float
+    # pulse_width_triceps_l: float
 
     @classmethod
     def from_flat_vector(cls, x: List[float]) -> "StimParameters":
@@ -54,18 +54,18 @@ class StimParameters:
             self.offset_deg_biceps_r,
             self.pulse_intensity_biceps_r,
             self.pulse_width_biceps_r,
-            self.onset_deg_triceps_r,
-            self.offset_deg_triceps_r,
-            self.pulse_intensity_triceps_r,
-            self.pulse_width_triceps_r,
-            self.onset_deg_biceps_l,
-            self.offset_deg_biceps_l,
-            self.pulse_intensity_biceps_l,
-            self.pulse_width_biceps_l,
-            self.onset_deg_triceps_l,
-            self.offset_deg_triceps_l,
-            self.pulse_intensity_triceps_l,
-            self.pulse_width_triceps_l,
+            # self.onset_deg_triceps_r,
+            # self.offset_deg_triceps_r,
+            # self.pulse_intensity_triceps_r,
+            # self.pulse_width_triceps_r,
+            # self.onset_deg_biceps_l,
+            # self.offset_deg_biceps_l,
+            # self.pulse_intensity_biceps_l,
+            # self.pulse_width_biceps_l,
+            # self.onset_deg_triceps_l,
+            # self.offset_deg_triceps_l,
+            # self.pulse_intensity_triceps_l,
+            # self.pulse_width_triceps_l,
         ]
 
 

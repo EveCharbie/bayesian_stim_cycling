@@ -1,3 +1,7 @@
+"""
+This code should be run in `run` not `debug` (memory access issues).
+"""
+
 from __future__ import annotations
 
 import threading
@@ -5,11 +9,12 @@ import queue
 import time
 import logging
 
-from pedal_communication import PedalDevice, DataType, DataCollector
-
-from bo_worker import BayesianOptimizationWorker, build_search_space
+from bo_worker import BayesianOptimizationWorker
 from stim_worker import StimulationWorker
 from pedal_worker import PedalWorker
+from live_plotter import LivePlotter
+
+from pedal_communication import PedalDevice, DataCollector
 
 
 def start_stimulation_optimization(data_collector: DataCollector) -> None:
@@ -30,15 +35,22 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
         worker_pedal=worker_pedal,
     )
 
+    # Create a thread to plot the results in real time
+    worker_plot = LivePlotter()
+
     # Create Bayesian optimization worker
     worker_bo = BayesianOptimizationWorker(
         stop_event=stop_event,
         worker_pedal=worker_pedal,
+        worker_stim=worker_stim,
+        worker_plot=worker_plot,
     )
 
     threading.Thread(target=worker_pedal.run, daemon=True).start()
     threading.Thread(target=worker_stim.run, daemon=True).start()
+    time.sleep(0.1)  # Give some time to start pedal and stim workers
     threading.Thread(target=worker_bo.run, daemon=True).start()
+    threading.Thread(target=worker_plot.run, daemon=True).start()
 
     # Keep main thread alive
     try:

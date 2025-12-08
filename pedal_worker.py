@@ -6,10 +6,10 @@ import time
 from typing import Tuple, Callable, Optional
 import math
 
-from pedal_communication import PedalDevice, DataCollector
+from pedal_communication import PedalDevice, DataCollector, DataType
 
 
-class PedalWorker(threading.Thread):
+class PedalWorker:
     """
     Background worker that continuously reads angle / speed / power
     from the pedal device.
@@ -22,11 +22,13 @@ class PedalWorker(threading.Thread):
             self,
             stop_event: threading.Event,
             data_collector: DataCollector,
-            name: str = "PedalWorker",
     ) -> None:
-        super().__init__(name=name, daemon=True)
-        self.stop_event = stop_event
+
+        # Flag to stop the thread
         self._keep_running = True
+
+        self.stop_event = stop_event
+
         self.data_collector = data_collector
 
         # Shared state (protected by _lock)
@@ -42,7 +44,7 @@ class PedalWorker(threading.Thread):
             level=logging.INFO,
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         )
-        self._logger = logging.getLogger(name)
+        self._logger = logging.getLogger("PedalWorker")
 
         # ---- Connect to pedal device ----
         self._logger.info("Connecting to pedal device...")
@@ -53,12 +55,6 @@ class PedalWorker(threading.Thread):
                 return
             time.sleep(0.1)
         self._logger.info("Pedal device connected.")
-
-        # ---- Start data collector ----
-        # todo: move outside ?
-        # self.data_collector = DataCollector(self.device)
-        # self.data_collector.start()
-        # self._logger.info("DataCollector started.")
 
     # ------------------------------------------------------------------
     # Public API
@@ -85,9 +81,10 @@ class PedalWorker(threading.Thread):
     # ------------------------------------------------------------------
     # Thread loop
     # ------------------------------------------------------------------
-    def wait(self):
-        time.sleep(0.005)
-        print("None -- sleep 0.005")
+    @staticmethod
+    def wait():
+        time.sleep(0.05)
+        print("None -- sleep 0.05")
 
     def run(self) -> None:
         self._logger.info("Pedal worker loop started.")
@@ -104,37 +101,44 @@ class PedalWorker(threading.Thread):
                 values = data.values
                 if values.size == 0:
                     self.wait()
+                else:
 
-                # angle -> col 18, speed -> col 35, power -> col 38
-                angle = math.degrees(float(values[-1, 18])) % 360
-                speed = math.degrees(float(values[-1, 35]))
-
-                power = 0.0
-                try:
-                    power = float(values[-1, 38])
-                except IndexError:
-                    pass
-
-                changed = (angle != prev_angle) or (speed != prev_speed)
-                if changed:
-                    prev_angle = angle
-                    prev_speed = speed
-                    # print("angle: ", angle)
-
-                # Update shared state
-                with self._lock:
-                    self._angle = angle
-                    self._speed = speed
-                    self._power = power
-
-                # Push to consumer if there is a new sample
-                if changed and self._callback is not None:
+                    # angle -> col 18, speed -> col 35, power -> col 38
                     try:
-                        self._callback(angle, speed, power)
-                    except Exception:
-                        self._logger.exception("Error in pedal callback")
+                        angle = math.degrees(float(values[-1, DataType.A18.value])) % 360
+                        speed = math.degrees(float(values[-1, DataType.A35.value]))
+                    except:
+                        print(values)
+                        print(values.shape)
+                        print(values.size)
+                        print(values[-1, DataType.A18.value])
 
-                time.sleep(0.005)  # you can tune this
+                    power = 0.0
+                    try:
+                        power = float(values[-1, DataType.A38.value])
+                    except IndexError:
+                        pass
+
+                    changed = (angle != prev_angle) or (speed != prev_speed)
+                    if changed:
+                        prev_angle = angle
+                        prev_speed = speed
+                        # print("angle: ", angle)
+
+                    # Update shared state
+                    with self._lock:
+                        self._angle = angle
+                        self._speed = speed
+                        self._power = power
+
+                    # # Push to consumer if there is a new sample
+                    # if changed and self._callback is not None:
+                    #     try:
+                    #         self._callback(angle, speed, power)
+                    #     except Exception:
+                    #         self._logger.exception("Error in pedal callback")
+
+                    time.sleep(0.005)
 
         finally:
             self._logger.info("Stopping DataCollector...")
