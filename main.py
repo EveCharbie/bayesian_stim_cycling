@@ -10,25 +10,12 @@ from pedal_communication import PedalDevice, DataType, DataCollector
 from bo_worker import BayesianOptimizationWorker, build_search_space
 from stim_worker import StimulationWorker
 from pedal_worker import PedalWorker
-from common_types import StimJob
 
 
 def start_stimulation_optimization(data_collector: DataCollector) -> None:
 
-    # Shared queue and stop flag
-    job_queue: "queue.Queue[StimJob | None]" = queue.Queue()
+    # Shared stop flag
     stop_event = threading.Event()
-
-    # # Build BO search space
-    # space = build_search_space()
-
-    # Create Bayesian optimization worker
-    # worker_bo = BayesianOptimizationWorker(
-    #     job_queue=job_queue,
-    #     stop_event=stop_event,
-    #     space=space,
-    #     data_collector=data_collector,
-    # )
 
     # Create pedal worker (third worker) that provides the crank angle
     worker_pedal = PedalWorker(
@@ -43,11 +30,15 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
         worker_pedal=worker_pedal,
     )
 
-    # I think latest_angle should be put in a Queue, it does not make sense that information is shared between threads
+    # Create Bayesian optimization worker
+    worker_bo = BayesianOptimizationWorker(
+        stop_event=stop_event,
+        worker_pedal=worker_pedal,
+    )
 
     threading.Thread(target=worker_pedal.run, daemon=True).start()
     threading.Thread(target=worker_stim.run, daemon=True).start()
-    # bo_worker.start()
+    threading.Thread(target=worker_bo.run, daemon=True).start()
 
     # Keep main thread alive
     try:

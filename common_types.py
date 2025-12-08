@@ -69,69 +69,25 @@ class StimParameters:
         ]
 
 
-@dataclass
-class StimJob:
-    """
-    A job requested by the optimizer:
-      - job_id: unique ID so we can match result to request
-      - params: stimulation parameters to test on hardware
-    """
-    job_id: int
-    params: StimParameters
+# @dataclass
+# class StimJob:
+#     """
+#     A job requested by the optimizer:
+#       - job_id: unique ID so we can match result to request
+#       - params: stimulation parameters to test on hardware
+#     """
+#     job_id: int
+#     params: StimParameters
 
 
-@dataclass
-class StimResult:
-    """
-    Result returned by the stimulation thread:
-      - job_id: must match the StimJob
-      - cost: scalar value to give back to the optimizer
-      - extra_data: optional (e.g., raw sensor data, logs)
-    """
-    job_id: int
-    cost: float
-    extra_data: Optional[Dict] = None
-
-
-@dataclass
-class AngleSpeedResult:
-    """
-    Result returned by the pedal thread:
-      - job_id: must match the PedalJob
-      - angle: the angle value to give back to the stimulator worker
-      - speed: the speed value to give back to the stimulator worker
-    """
-    job_id: int
-    angle: float
-    speed: float
-
-
-@dataclass
-class PedalParameters:
-    """
-    Single sample of pedal parameters:
-
-      angle / speed / power.
-    """
-
-    angle: float
-    speed: float
-    power: float
-
-    @classmethod
-    def from_flat_vector(cls, x: List[float]) -> "PedalParameters":
-        """
-        Convert vector to PedalParameters instance.
-        """
-        return cls(*x)
-
-    def to_flat_vector(self) -> List[float]:
-        """
-        Convert back to a flat list if needed.
-        """
-        return [
-            self.angle,
-            self.speed,
-            self.power,
-        ]
-
+# @dataclass
+# class StimResult:
+#     """
+#     Result returned by the stimulation thread:
+#       - job_id: must match the StimJob
+#       - cost: scalar value to give back to the optimizer
+#       - extra_data: optional (e.g., raw sensor data, logs)
+#     """
+#     job_id: int
+#     cost: float
+#     extra_data: Optional[Dict] = None

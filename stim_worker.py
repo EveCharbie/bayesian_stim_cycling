@@ -1,23 +1,15 @@
 from __future__ import annotations
 
 import threading
-import queue
 import time
-from typing import Optional, Dict, Callable, List, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pedal_worker import PedalWorker
 
-import numpy as np
-import nidaqmx
-
-from pedal_communication import DataCollector, DataType
-
 from pysciencemode import Rehastim2 as St
 from pysciencemode import Channel as Ch
 from pysciencemode import Device, Modes
-
-from common_types import StimJob, StimResult, StimParameters
 
 
 class HandCycling2:
@@ -45,7 +37,7 @@ class HandCycling2:
 
         # Default intensity for each muscle (will be overridden by BO)
         self.intensity = {
-            "biceps_r": 10,
+            "biceps_r": 0,
             # "triceps_r": 10,
             # "biceps_l": 10,
             # "triceps_l": 10,
@@ -101,10 +93,6 @@ class HandCycling2:
             list_channels=self.list_channels,
         )
 
-        # Condition flags for wrap-around
-        # self.stim_condition: Dict[str, int] = {}
-        # self._update_stim_condition()
-
         # Angle-related state (degrees)
         self._angle_lock = threading.Lock()
         self.angle = 0.0               # current estimated angle (deg)
@@ -127,7 +115,7 @@ class HandCycling2:
     #             1 if self.stimulation_range[key][0] < self.stimulation_range[key][1] else 0
     #         )
 
-    def apply_parameters(self, params: StimParameters) -> None:
+    def apply_parameters(self, params) -> None:
         """
         Apply BO parameters to:
           - stimulation_range (onset/offset)
@@ -149,8 +137,6 @@ class HandCycling2:
             # Update pulse width
             self.pulse_width[muscle] = pulse_width
 
-        # # Recompute condition flags
-        # self._update_stim_condition()
 
     # ---------- called when pedal worker has a new real sample ----------
     def update_sensor(self, angle: float, speed: float) -> None:
@@ -214,7 +200,7 @@ class HandCycling2:
             channel = self.list_channels[ch_idx]
 
             if self.angle > 360.0 or self.angle < 0:
-                raise RuntimeError("EEEEEEEEEEEEEEror")
+                raise RuntimeError("Error: this should not happen. The angle is out of range [0. 360].")
 
             # Range wraps around 360 (e.g., [220, 10])
             should_be_active = self.should_stimulation_be_active(onset, offset)
@@ -259,47 +245,31 @@ class StimulationWorker:
     def __init__(
         self,
         worker_pedal: Optional["PedalWorker"],
-        # job_queue: "queue.Queue[Optional[StimJob]]",
-        # stop_event: threading.Event,
-        # result_callback: Callable[[StimResult], None],
-        # data_collector: DataCollector = None,
-        # eval_duration_s: float = 2.0,
-        # name: str = "StimulationWorker",
     ):
+        # Flag to stop the thread
         self._keep_running = True
-
-        # self.job_queue = job_queue
-        # self.stop_event = stop_event
-        # self.result_callback = result_callback
-        # self.data_collector = data_collector
-        # self.eval_duration_s = eval_duration_s
 
         # Controller that runs continuously
         self.controller = HandCycling2(worker_pedal)
 
-        # State for current BO evaluation
-        self.current_job: Optional[StimJob] = None
-        self.eval_start_time: Optional[float] = None
-        # self.eval_buffer: List[Dict] = []
-
         # Worker that provides pedal data
         self.worker_pedal = worker_pedal
+
+        # State for current BO evaluation
+        # self.eval_start_time: Optional[float] = None
+        # self.eval_buffer: List[Dict] = []
+
         # if self.worker_pedal is not None:
         #     # Register to receive real pedal samples
         #     self.worker_pedal.register_callback(self.handle_pedal_update)
 
-    # def handle_pedal_update(self, angle: float, speed: float, power: float) -> None:
-    #     """
-    #     Very lightweight: just update the controller's sensor state.
-    #     """
-    #     self.controller.update_sensor(angle, speed)
-    #     # self._last_power = power # If power in the cost
-
     def run(self) -> None:
+
+        # Clear the data collector buffer
+        self.worker_pedal.data_collector.clear()
+
         while self._keep_running:
 
-            # Clear the data collector buffer
-            # self.worker_pedal.data_collector.clear()
             # Apply parameters immediately and stimulation continues with new params
             # self.controller.apply_parameters(job.params)
 
@@ -311,12 +281,9 @@ class StimulationWorker:
                     upd_list_channels=self.controller.list_channels
                 )
 
-            # if self.current_job is not None:
-            #     # self.eval_buffer.append(measurement)
-            #
-            #     elapsed = time.time() - self.eval_start_time
-            #     if elapsed >= self.eval_duration_s:
-            #         self._finish_current_evaluation()
+            # elapsed = time.time() - self.eval_start_time
+            # if elapsed >= self.eval_duration_s:
+            #     self._finish_current_evaluation()
 
             time.sleep(0.001)
 
