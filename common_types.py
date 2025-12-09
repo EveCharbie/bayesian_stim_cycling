@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import List, Dict
 
 from constants import STIMULATION_RANGE
 
@@ -19,25 +19,21 @@ class StimParameters:
     onset_deg_biceps_r: float
     offset_deg_biceps_r: float
     pulse_intensity_biceps_r: float
-    # pulse_width_biceps_r: float
 
-    # # Right triceps
-    # onset_deg_triceps_r: float
-    # offset_deg_triceps_r: float
-    # pulse_intensity_triceps_r: float
-    # pulse_width_triceps_r: float
+    # Right triceps
+    onset_deg_triceps_r: float
+    offset_deg_triceps_r: float
+    pulse_intensity_triceps_r: float
 
-    # # Left biceps
-    # onset_deg_biceps_l: float
-    # offset_deg_biceps_l: float
-    # pulse_intensity_biceps_l: float
-    # pulse_width_biceps_l: float
+    # Left biceps
+    onset_deg_biceps_l: float
+    offset_deg_biceps_l: float
+    pulse_intensity_biceps_l: float
 
-    # # Left triceps
-    # onset_deg_triceps_l: float
-    # offset_deg_triceps_l: float
-    # pulse_intensity_triceps_l: float
-    # pulse_width_triceps_l: float
+    # Left triceps
+    onset_deg_triceps_l: float
+    offset_deg_triceps_l: float
+    pulse_intensity_triceps_l: float
 
     @classmethod
     def from_flat_vector(cls, x: List[float]) -> "StimParameters":
@@ -56,19 +52,15 @@ class StimParameters:
             onset_deg_biceps_r=param_dict["onset_deg_biceps_r"],
             offset_deg_biceps_r=param_dict["offset_deg_biceps_r"],
             pulse_intensity_biceps_r=param_dict["pulse_intensity_biceps_r"],
-            # pulse_width_biceps_r=param_dict["pulse_width_biceps_r"],
-            # onset_deg_triceps_r=param_dict["onset_deg_triceps_r"],
-            # offset_deg_triceps_r=param_dict["offset_deg_triceps_r"],
-            # pulse_intensity_triceps_r=param_dict["pulse_intensity_triceps_r"],
-            # pulse_width_triceps_r=param_dict["pulse_width_triceps_r"],
-            # onset_deg_biceps_l=param_dict["onset_deg_biceps_l"],
-            # offset_deg_biceps_l=param_dict["offset_deg_biceps_l"],
-            # pulse_intensity_biceps_l=param_dict["pulse_intensity_biceps_l"],
-            # pulse_width_biceps_l=param_dict["pulse_width_biceps_l"],
-            # onset_deg_triceps_l=param_dict["onset_deg_triceps_l"],
-            # offset_deg_triceps_l=param_dict["offset_deg_triceps_l"],
-            # pulse_intensity_triceps_l=param_dict["pulse_intensity_triceps_l"],
-            # pulse_width_triceps_l=param_dict["pulse_width_triceps_l"],
+            onset_deg_triceps_r=param_dict["onset_deg_triceps_r"],
+            offset_deg_triceps_r=param_dict["offset_deg_triceps_r"],
+            pulse_intensity_triceps_r=param_dict["pulse_intensity_triceps_r"],
+            onset_deg_biceps_l=param_dict["onset_deg_biceps_l"],
+            offset_deg_biceps_l=param_dict["offset_deg_biceps_l"],
+            pulse_intensity_biceps_l=param_dict["pulse_intensity_biceps_l"],
+            onset_deg_triceps_l=param_dict["onset_deg_triceps_l"],
+            offset_deg_triceps_l=param_dict["offset_deg_triceps_l"],
+            pulse_intensity_triceps_l=param_dict["pulse_intensity_triceps_l"],
         )
 
     def to_flat_vector(self) -> List[float]:
@@ -79,19 +71,15 @@ class StimParameters:
             self.onset_deg_biceps_r,
             self.offset_deg_biceps_r,
             self.pulse_intensity_biceps_r,
-            # self.pulse_width_biceps_r,
-            # self.onset_deg_triceps_r,
-            # self.offset_deg_triceps_r,
-            # self.pulse_intensity_triceps_r,
-            # self.pulse_width_triceps_r,
-            # self.onset_deg_biceps_l,
-            # self.offset_deg_biceps_l,
-            # self.pulse_intensity_biceps_l,
-            # self.pulse_width_biceps_l,
-            # self.onset_deg_triceps_l,
-            # self.offset_deg_triceps_l,
-            # self.pulse_intensity_triceps_l,
-            # self.pulse_width_triceps_l,
+            self.onset_deg_triceps_r,
+            self.offset_deg_triceps_r,
+            self.pulse_intensity_triceps_r,
+            self.onset_deg_biceps_l,
+            self.offset_deg_biceps_l,
+            self.pulse_intensity_biceps_l,
+            self.onset_deg_triceps_l,
+            self.offset_deg_triceps_l,
+            self.pulse_intensity_triceps_l,
         ]
 
     def add_angles_offset(self) -> StimParameters:
@@ -111,17 +99,13 @@ class StimParameters:
             onset_deg_biceps_r=mod_angle(self.onset_deg_biceps_r + STIMULATION_RANGE["biceps_r"][0]),
             offset_deg_biceps_r=mod_angle(self.offset_deg_biceps_r + STIMULATION_RANGE["biceps_r"][1]),
             pulse_intensity_biceps_r=self.pulse_intensity_biceps_r,
-            # pulse_width_biceps_r=self.pulse_width_biceps_r,
-            # onset_deg_triceps_r=mod_angle(self.onset_deg_triceps_r + STIMULATION_RANGE["triceps_r"][0]),
-            # offset_deg_triceps_r=mod_angle(self.offset_deg_triceps_r + STIMULATION_RANGE["triceps_r"][1]),
-            # pulse_intensity_triceps_r=self.pulse_intensity_triceps_r,
-            # pulse_width_triceps_r=self.pulse_width_triceps_r,
-            # onset_deg_biceps_l=mod_angle(self.onset_deg_biceps_l + STIMULATION_RANGE["biceps_l"][0]),
-            # offset_deg_biceps_l=mod_angle(self.offset_deg_biceps_l + STIMULATION_RANGE["biceps_l"][1]),
-            # pulse_intensity_biceps_l=self.pulse_intensity_biceps_l,
-            # pulse_width_biceps_l=self.pulse_width_biceps_l,
-            # onset_deg_triceps_l=mod_angle(self.onset_deg_triceps_l + STIMULATION_RANGE["triceps_l"][0]),
-            # offset_deg_triceps_l=mod_angle(self.offset_deg_triceps_l + STIMULATION_RANGE["triceps_l"][1]),
-            # pulse_intensity_triceps_l=self.pulse_intensity_triceps_l,
-            # pulse_width_triceps_l=self.pulse_width_triceps_l,
+            onset_deg_triceps_r=mod_angle(self.onset_deg_triceps_r + STIMULATION_RANGE["triceps_r"][0]),
+            offset_deg_triceps_r=mod_angle(self.offset_deg_triceps_r + STIMULATION_RANGE["triceps_r"][1]),
+            pulse_intensity_triceps_r=self.pulse_intensity_triceps_r,
+            onset_deg_biceps_l=mod_angle(self.onset_deg_biceps_l + STIMULATION_RANGE["biceps_l"][0]),
+            offset_deg_biceps_l=mod_angle(self.offset_deg_biceps_l + STIMULATION_RANGE["biceps_l"][1]),
+            pulse_intensity_biceps_l=self.pulse_intensity_biceps_l,
+            onset_deg_triceps_l=mod_angle(self.onset_deg_triceps_l + STIMULATION_RANGE["triceps_l"][0]),
+            offset_deg_triceps_l=mod_angle(self.offset_deg_triceps_l + STIMULATION_RANGE["triceps_l"][1]),
+            pulse_intensity_triceps_l=self.pulse_intensity_triceps_l,
         )
