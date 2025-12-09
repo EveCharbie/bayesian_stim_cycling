@@ -19,7 +19,7 @@ class StimParameters:
     onset_deg_biceps_r: float
     offset_deg_biceps_r: float
     pulse_intensity_biceps_r: float
-    pulse_width_biceps_r: float
+    # pulse_width_biceps_r: float
 
     # # Right triceps
     # onset_deg_triceps_r: float
@@ -55,7 +55,7 @@ class StimParameters:
             self.onset_deg_biceps_r,
             self.offset_deg_biceps_r,
             self.pulse_intensity_biceps_r,
-            self.pulse_width_biceps_r,
+            # self.pulse_width_biceps_r,
             # self.onset_deg_triceps_r,
             # self.offset_deg_triceps_r,
             # self.pulse_intensity_triceps_r,
@@ -87,7 +87,7 @@ class StimParameters:
             onset_deg_biceps_r=mod_angle(self.onset_deg_biceps_r + STIMULATION_RANGE["biceps_r"][0]),
             offset_deg_biceps_r=mod_angle(self.offset_deg_biceps_r + STIMULATION_RANGE["biceps_r"][1]),
             pulse_intensity_biceps_r=self.pulse_intensity_biceps_r,
-            pulse_width_biceps_r=self.pulse_width_biceps_r,
+            # pulse_width_biceps_r=self.pulse_width_biceps_r,
             # onset_deg_triceps_r=mod_angle(self.onset_deg_triceps_r + STIMULATION_RANGE["triceps_r"][0]),
             # offset_deg_triceps_r=mod_angle(self.offset_deg_triceps_r + STIMULATION_RANGE["triceps_r"][1]),
             # pulse_intensity_triceps_r=self.pulse_intensity_triceps_r,

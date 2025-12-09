@@ -36,6 +36,7 @@ class BayesianOptimizationWorker:
         worker_plot: LivePlotter,
         nb_cycles_to_run: int = 5,
         nb_cycles_to_keep: int = 3,
+        really_change_stim_intensity: bool = True,
     ):
         # self.job_queue = job_queue
         self.stop_event = stop_event
@@ -64,6 +65,9 @@ class BayesianOptimizationWorker:
         self._result_available = threading.Condition(self._result_lock)
 
         self.best_result = None  # will hold gp_minimize's result
+
+        # Debugging flag to avoid large stim during tests
+        self.really_change_stim_intensity = really_change_stim_intensity
 
     def build_search_space(self):
         """
@@ -166,7 +170,7 @@ class BayesianOptimizationWorker:
         print("[BO] Evaluating parameters:", parameters)
         
         # Update the stimulation worker with new parameters
-        self.worker_stim.controller.apply_parameters(parameters)
+        self.worker_stim.controller.apply_parameters(parameters, self.really_change_stim_intensity)
         print("[BO] Applied new stimulation parameters.")
         
         # Clear the data collector buffer to start fresh

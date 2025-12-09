@@ -9,8 +9,8 @@ list_channels = [
     Ch(
         mode=Modes.SINGLE,
         no_channel=1,
-        amplitude=10,  # Modify here the intensity
-        pulse_width=250,  # 100, 500
+        amplitude=71,  # Modify here the intensity MICK max = 71 in optim = 50
+        pulse_width=300,  # 100, 500
         enable_low_frequency=True,
         name="Biceps",
         device_type=Device.Rehastim2,

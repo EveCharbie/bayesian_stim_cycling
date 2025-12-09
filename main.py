@@ -43,6 +43,7 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
         worker_pedal=worker_pedal,
         worker_stim=worker_stim,
         worker_plot=worker_plot,
+        really_change_stim_intensity=True,  # This is just a debugging flag to avoid having large stim during tests
     )
 
     threading.Thread(target=worker_pedal.run, daemon=True).start()

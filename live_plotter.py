@@ -38,7 +38,7 @@ class LivePlotter:
         """Thread-safe data update"""
         with self.lock:
             self.costs = np.array(cost_list)
-            parameters_array = np.empty((0, 4))
+            parameters_array = np.empty((0, len(PARAMS_BOUNDS.keys())))
             for param in parameter_list:
                 parameters_array = np.vstack((parameters_array, param.to_flat_vector()))
             self.parameters = parameters_array
@@ -100,10 +100,11 @@ class LivePlotter:
             self.axs[1, 0].set_title("Intensity")
             self.axs[1, 0].set_xlim(PARAMS_BOUNDS["pulse_intensity"][0], PARAMS_BOUNDS["pulse_intensity"][1])
 
-            self.axs[1, 1].scatter(self.parameters[:, 3], self.costs, c=colors, cmap="viridis")
-            self.axs[1, 1].plot(self.parameters[-1, 3], self.costs[-1], "kx")
-            self.axs[1, 1].set_title("Width")
-            self.axs[1, 1].set_xlim(PARAMS_BOUNDS["pulse_width"][0], PARAMS_BOUNDS["pulse_width"][1])
+            # self.axs[1, 1].scatter(self.parameters[:, 3], self.costs, c=colors, cmap="viridis")
+            # self.axs[1, 1].plot(self.parameters[-1, 3], self.costs[-1], "kx")
+            # self.axs[1, 1].set_title("Width")
+            # self.axs[1, 1].set_xlim(PARAMS_BOUNDS["pulse_width"][0], PARAMS_BOUNDS["pulse_width"][1])
+            self.axs[1, 1].axis('off')
 
             time.sleep(0.1)
             return

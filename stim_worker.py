@@ -38,7 +38,7 @@ class HandCycling2:
 
         # Default intensity for each muscle (will be overridden by BO)
         self.intensity = {
-            "biceps_r": 7,
+            "biceps_r": 10,
             # "triceps_r": 10,
             # "biceps_l": 10,
             # "triceps_l": 10,
@@ -46,7 +46,7 @@ class HandCycling2:
 
         # Default pulse width for each muscle (will be overridden by BO)
         self.pulse_width = {
-            "biceps_r": 100,
+            "biceps_r": 300,
             # "triceps_r": 100,
             # "biceps_l": 100,
             # "triceps_l": 100,
@@ -102,7 +102,7 @@ class HandCycling2:
         # ----------------- Start stimulation once ----------------- #
         self.stimulator.start_stimulation(upd_list_channels=self.list_channels)
 
-    def apply_parameters(self, params: StimParameters) -> None:
+    def apply_parameters(self, params: StimParameters, really_change_stim_intensity: bool) -> None:
         """
         Apply BO parameters to:
           - stimulation_range (onset/offset)
@@ -112,17 +112,18 @@ class HandCycling2:
         for muscle in MUSCLE_KEYS:
             onset = int(getattr(params, f"onset_deg_{muscle}"))
             offset = int(getattr(params, f"offset_deg_{muscle}"))
-            # intensity = int(getattr(params, f"pulse_intensity_{muscle}"))  # TODO: uncomment here to stim
-            pulse_width = int(getattr(params, f"pulse_width_{muscle}"))
+            intensity = int(getattr(params, f"pulse_intensity_{muscle}"))
+            # pulse_width = int(getattr(params, f"pulse_width_{muscle}"))
 
             # Update angle range [onset, offset]
             self.stimulation_range[muscle] = [onset, offset]
 
-            # # Update intensity
-            # self.intensity[muscle] = intensity  # TODO: uncomment here to stim
+            # Update intensity
+            if really_change_stim_intensity:
+                self.intensity[muscle] = intensity
 
             # Update pulse width
-            self.pulse_width[muscle] = pulse_width
+            # self.pulse_width[muscle] = pulse_width
 
 
     # # ---------- called when pedal worker has a new real sample ----------

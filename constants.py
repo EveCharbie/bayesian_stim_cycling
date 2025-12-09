@@ -2,10 +2,10 @@
 
 # Zero = left hand in front
 STIMULATION_RANGE = {
-    "biceps_r": [220.0, 10.0],
-    # "triceps_r": [20.0, 180.0],
-    # "biceps_l": [40.0, 190.0],
-    # "triceps_l": [200.0, 360.0],
+    "biceps_r": [220 - 90, 10 - 90],
+    # "triceps_r": [20 - 90, 180 - 90],
+    # "biceps_l": [40 - 90, 190 - 90],
+    # "triceps_l": [200 - 90, 360 - 90],
 }
 
 MUSCLE_KEYS = (
@@ -16,8 +16,9 @@ MUSCLE_KEYS = (
 )
 
 PARAMS_BOUNDS = {
-    "onset_deg": [-40.0, 40.0],
-    "offset_deg": [-40.0, 40.0],
-    "pulse_intensity": [1.0, 7.0],
-    "pulse_width": [100.0, 500.0],
+    "onset_deg": [-30.0, 30.0],
+    "offset_deg": [-30.0, 30.0],
+    "pulse_intensity": [5, 15],  # TODO: Change these values to really stim
+    # "pulse_intensity": [30, 50],
+    # "pulse_width": [200.0, 400.0],
 }
