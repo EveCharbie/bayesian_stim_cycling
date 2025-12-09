@@ -37,12 +37,14 @@ class BayesianOptimizationWorker:
         worker_plot: LivePlotter,
         nb_cycles_to_run: int = 5,
         nb_cycles_to_keep: int = 3,
+        nb_initialization_cycles: int = 8,
         really_change_stim_intensity: bool = True,
     ):
         # self.job_queue = job_queue
         self.stop_event = stop_event
         self.nb_cycles_to_run = nb_cycles_to_run
         self.nb_cycles_to_keep = nb_cycles_to_keep
+        self.nb_initialization_cycles = nb_initialization_cycles
 
         # Flag to stop the thread
         self._keep_running = True
@@ -199,7 +201,8 @@ class BayesianOptimizationWorker:
         Save the BO results to a file.
         """
         results = {
-            "best_result": self.best_result,
+            "best_params": self.best_result.x,
+            "best_cost": self.best_result.fun,
             "cost_list": self.cost_list,
             "parameter_list": self.parameter_list,
         }
@@ -231,7 +234,7 @@ class BayesianOptimizationWorker:
         )
         self.best_result = bayesian_optimizer.optimize(
             n_iterations=20, 
-            n_initial_steps=8, 
+            nb_initialization_cycles=self.nb_initialization_cycles,
             verbose=True,
         )
 

@@ -8,6 +8,21 @@ from common_types import StimParameters
 from constants import PARAMS_BOUNDS
 
 
+class OptimizationResults:
+    """Class mocking the optimization results from scipy."""
+
+    def __init__(self, best_x: np.ndarray, best_y: float):
+        self.best_x = best_x
+        self.best_y = best_y
+
+    @property
+    def x(self) -> np.ndarray:
+        return self.best_x
+
+    @property
+    def fun(self) -> float:
+        return self.best_y
+
 class GaussianProcess:
     """
     Simple Gaussian Process.
@@ -82,10 +97,15 @@ class BayesianOptimizer:
         self.xi = xi
         self.gp = GaussianProcess(length_scale=length_scale)
 
-        self.input_observed = np.empty((self.n_params, 0))
-        self.output_observed = np.empty((1, 0))
+        self.input_observed = np.empty((0, self.n_params))
+        self.output_observed = np.empty((0, 1))
         self.best_x = None
         self.best_y = np.inf
+
+    @property
+    def bounds(self) -> np.ndarray:
+        """Get parameter bounds as a numpy array."""
+        return np.array([PARAMS_BOUNDS[key] for key in PARAMS_BOUNDS.keys()])  # shape (n_params, 2)
 
     def probability_of_improvement(self, x: np.ndarray) -> np.ndarray:
         """
@@ -140,17 +160,17 @@ class BayesianOptimizer:
 
         return best_x
 
-    def initialize(self, n_initial_steps: int):
+    def initialize(self, nb_initialization_cycles: int):
         """
         Initialize predefined samples with random onset and offset, but with incremental intensity so that the
         participant slowly gets habituated to the stimulation.
 
         Parameters
-            n_initial_steps: Number of initial random samples
+            nb_initialization_cycles: Number of initial random samples
         """
-        intensity_increment = (PARAMS_BOUNDS["pulse_intensity"][1] - PARAMS_BOUNDS["pulse_intensity"][0]) / n_initial_steps
+        intensity_increment = (PARAMS_BOUNDS["pulse_intensity"][1] - PARAMS_BOUNDS["pulse_intensity"][0]) / nb_initialization_cycles
 
-        for i_init in range(n_initial_steps):
+        for i_init in range(nb_initialization_cycles):
             # Random angles
             onset_this_time = np.random.uniform(
                 PARAMS_BOUNDS["onset_deg"][0],
@@ -164,13 +184,14 @@ class BayesianOptimizer:
             # Incremental intensity
             intensity_this_time = PARAMS_BOUNDS["pulse_intensity"][0] + i_init * intensity_increment
 
-            stim_params = StimParameters(
-                    onset_deg_biceps_r=onset_this_time,
-                    offset_deg_biceps_r=offset_this_time,
-                    pulse_intensity_biceps_r=intensity_this_time,
-                )
-            y = self.objective_func(stim_params)
-            x = stim_params.to_flat_vector()
+            # stim_params = StimParameters(
+            #         onset_deg_biceps_r=onset_this_time,
+            #         offset_deg_biceps_r=offset_this_time,
+            #         pulse_intensity_biceps_r=intensity_this_time,
+            #     )
+            x = [onset_this_time, offset_this_time, intensity_this_time]
+            y = np.array([self.objective_func(x)]).reshape(1, 1)
+            x = np.array(x).reshape(1, 3)
 
             self.input_observed = np.vstack((self.input_observed, x))
             self.output_observed = np.vstack((self.output_observed, y))
@@ -181,23 +202,23 @@ class BayesianOptimizer:
 
         self.gp.fit(self.input_observed, self.output_observed)
 
-    def optimize(self, n_iterations: int = 20, n_initial_steps: int = 8, verbose: bool = True):
+    def optimize(self, n_iterations: int = 20, nb_initialization_cycles: int = 8, verbose: bool = True):
         """
         Run the Bayesian Optimization loop.
 
         Parameters:
             n_iterations: Number of optimization iterations
-            n_initial_steps: Number of initial incremental steps to evaluate before starting the optimization.
+            nb_initialization_cycles: Number of initial incremental steps to evaluate before starting the optimization.
             verbose: Print progress
         """
         # Initialize with random samples
         if verbose:
             print("[BO OPTIM] Initializing with random samples...")
-        self.initialize(n_initial_steps)
+        self.initialize(nb_initialization_cycles)
 
         if verbose:
-            print(f"[BO OPTIM] Initial best: {self.best_y:.6f}")
-            print(f"[BO OPTIM] Initial best params: {self.best_x}")
+            print(f"[BO OPTIM] Initial best: {self.best_y[0]}")
+            print(f"[BO OPTIM] Initial best params: {self.best_x[0, 0], self.best_x[0, 1], self.best_x[0, 2]}")
             print("[BO OPTIM] \nStarting optimization...")
 
         # Main optimization loop
@@ -222,7 +243,7 @@ class BayesianOptimizer:
 
             if verbose:
                 print(f"[BO OPTIM] Iteration {i_iter + 1}/{n_iterations}: "
-                      f"y = {next_y:.6f}, best = {self.best_y:.6f}")
+                      f"y = {next_y}, best = {self.best_y}")
 
-        return self.best_x, self.best_y
+        return OptimizationResults(self.best_x, self.best_y)
 

@@ -38,7 +38,7 @@ class HandCycling2:
 
         # Default intensity for each muscle (will be overridden by BO)
         self.intensity = {
-            "biceps_r": 10,
+            "biceps_r": 1,
             # "triceps_r": 10,
             # "biceps_l": 10,
             # "triceps_l": 10,
