@@ -14,6 +14,7 @@ from stim_worker import StimulationWorker
 from common_types import StimParameters
 from live_plotter import LivePlotter
 from constants import MUSCLE_KEYS, PARAMS_BOUNDS
+from bayesian_optimizer import BayesianOptimizer
 
 from pedal_communication.data.data import DataType
 
@@ -167,11 +168,11 @@ class BayesianOptimizationWorker:
         # Get the current parameters
         params = StimParameters.from_flat_vector(x)
         parameters = params.add_angles_offset()
-        print("[BO] Evaluating parameters:", parameters)
+        print("[BO WORKER] Evaluating parameters:", parameters)
         
         # Update the stimulation worker with new parameters
         self.worker_stim.controller.apply_parameters(parameters, self.really_change_stim_intensity)
-        print("[BO] Applied new stimulation parameters.")
+        print("[BO WORKER] Applied new stimulation parameters.")
         
         # Clear the data collector buffer to start fresh
         self.worker_pedal.data_collector.clear()
@@ -179,12 +180,12 @@ class BayesianOptimizationWorker:
         # Wait until a few cycles have been collected
         while self.get_num_cycles() < self.nb_cycles_to_run:
             time.sleep(0.1)
-        print("[BO] Required number of cycles collected.")
+        print("[BO WORKER] Required number of cycles collected.")
 
         # Get cost value
         last_cycles_data = self.get_last_cycles_data()
         cost = self.get_cost_value(last_cycles_data)
-        print(f"[BO] Cost evaluated: {cost}")
+        print(f"[BO WORKER] Cost evaluated: {cost}")
 
         # Update results and live plotter
         self.cost_list.append(cost)
@@ -204,27 +205,38 @@ class BayesianOptimizationWorker:
         }
         with open("bo_results.pkl", "wb") as f:
             pickle.dump(results, f)
-        print("[BO] Results saved to bo_results.pkl.")
+        print("[BO WORKER] Results saved to bo_results.pkl.")
 
     def run(self) -> None:
         """
         Main BO routine. Runs in a separate thread.
         """
-        print("[BO] Starting Bayesian optimization with continuous stimulation...")
+        print("[BO WORKER] Starting Bayesian optimization with continuous stimulation...")
 
-        self.best_result = gp_minimize(
-            func=self._objective,
-            dimensions=self.space,
-            n_calls=100,  # 6,
-            n_initial_points=6,
-            acq_func="PI",  # "LCB", "EI", "PI", "gp_hedge", "EIps", "PIps"
-            kappa=5,  # *
-            random_state=0,
-            n_jobs=1,
-        )  # x0, y0, kappa[exploitation, exploration], xi [minimal improvement default 0.01]
+        # self.best_result = gp_minimize(
+        #     func=self._objective,
+        #     dimensions=self.space,
+        #     n_calls=100,  # 6,
+        #     n_initial_points=6,
+        #     acq_func="PI",  # "LCB", "EI", "PI", "gp_hedge", "EIps", "PIps"
+        #     kappa=5,  # *
+        #     random_state=0,
+        #     n_jobs=1,
+        # )  # x0, y0, kappa[exploitation, exploration], xi [minimal improvement default 0.01]
 
-        print("[BO] Optimization finished.")
-        print("[BO] Best parameters (flat vector):", self.best_result.x)
-        print("[BO] Best cost:", self.best_result.fun)
+        bayesian_optimizer = BayesianOptimizer(
+            objective_func=self._objective,
+            xi=0.01,
+            length_scale=1.0,
+        )
+        self.best_result = bayesian_optimizer.optimize(
+            n_iterations=20, 
+            n_initial_steps=8, 
+            verbose=True,
+        )
+
+        print("[BO WORKER] Optimization finished.")
+        print("[BO WORKER] Best parameters (flat vector):", self.best_result.x)
+        print("[BO WORKER] Best cost:", self.best_result.fun)
 
         self.save_results()

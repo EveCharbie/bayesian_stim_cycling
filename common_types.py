@@ -47,6 +47,30 @@ class StimParameters:
         """
         return cls(*x)
 
+    @classmethod
+    def from_dict(cls, param_dict: Dict[str, float]) -> "StimParameters":
+        """
+        Convert dictionary to StimParameters instance.
+        """
+        return cls(
+            onset_deg_biceps_r=param_dict["onset_deg_biceps_r"],
+            offset_deg_biceps_r=param_dict["offset_deg_biceps_r"],
+            pulse_intensity_biceps_r=param_dict["pulse_intensity_biceps_r"],
+            # pulse_width_biceps_r=param_dict["pulse_width_biceps_r"],
+            # onset_deg_triceps_r=param_dict["onset_deg_triceps_r"],
+            # offset_deg_triceps_r=param_dict["offset_deg_triceps_r"],
+            # pulse_intensity_triceps_r=param_dict["pulse_intensity_triceps_r"],
+            # pulse_width_triceps_r=param_dict["pulse_width_triceps_r"],
+            # onset_deg_biceps_l=param_dict["onset_deg_biceps_l"],
+            # offset_deg_biceps_l=param_dict["offset_deg_biceps_l"],
+            # pulse_intensity_biceps_l=param_dict["pulse_intensity_biceps_l"],
+            # pulse_width_biceps_l=param_dict["pulse_width_biceps_l"],
+            # onset_deg_triceps_l=param_dict["onset_deg_triceps_l"],
+            # offset_deg_triceps_l=param_dict["offset_deg_triceps_l"],
+            # pulse_intensity_triceps_l=param_dict["pulse_intensity_triceps_l"],
+            # pulse_width_triceps_l=param_dict["pulse_width_triceps_l"],
+        )
+
     def to_flat_vector(self) -> List[float]:
         """
         Convert back to a flat list if needed.
