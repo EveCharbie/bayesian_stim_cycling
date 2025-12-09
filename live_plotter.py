@@ -10,6 +10,7 @@ matplotlib.use("TkAgg")  # or 'Qt5Agg'
 import matplotlib.pyplot as plt
 
 from common_types import StimParameters
+from constants import STIMULATION_RANGE, PARAMS_BOUNDS
 
 
 class LivePlotter:
@@ -79,24 +80,30 @@ class LivePlotter:
                 ax.cla()
 
             colors = np.arange(100)[:len(self.costs)]
-            print(self.costs)
-            print(self.parameters)
+            # print(self.costs)
+            # print(self.parameters)
 
             self.axs[0, 0].scatter(self.parameters[:, 0], self.costs, c=colors, cmap="viridis")
             self.axs[0, 0].plot(self.parameters[-1, 0], self.costs[-1], "kx")
             self.axs[0, 0].set_title("Onset")
+            # self.axs[0, 0].set_xlim(STIMULATION_RANGE["biceps_r"][0] + PARAMS_BOUNDS["onset_deg"][0], STIMULATION_RANGE["biceps_r"][0] + PARAMS_BOUNDS["onset_deg"][1])
+            self.axs[0, 0].set_xlim(PARAMS_BOUNDS["onset_deg"][0], PARAMS_BOUNDS["onset_deg"][1])
 
             self.axs[0, 1].scatter(self.parameters[:, 1], self.costs, c=colors, cmap="viridis")
             self.axs[0, 1].plot(self.parameters[-1, 1], self.costs[-1], "kx")
             self.axs[0, 1].set_title("Offset")
+            # self.axs[0, 1].set_xlim(STIMULATION_RANGE["biceps_r"][1] + PARAMS_BOUNDS["offset_deg"][0], STIMULATION_RANGE["biceps_r"][1] + PARAMS_BOUNDS["offset_deg"][1])
+            self.axs[0, 0].set_xlim(PARAMS_BOUNDS["offset_deg"][0], PARAMS_BOUNDS["offset_deg"][1])
 
             self.axs[1, 0].scatter(self.parameters[:, 2], self.costs, c=colors, cmap="viridis")
             self.axs[1, 0].plot(self.parameters[-1, 2], self.costs[-1], "kx")
             self.axs[1, 0].set_title("Intensity")
+            self.axs[1, 0].set_xlim(PARAMS_BOUNDS["pulse_intensity"][0], PARAMS_BOUNDS["pulse_intensity"][1])
 
             self.axs[1, 1].scatter(self.parameters[:, 3], self.costs, c=colors, cmap="viridis")
             self.axs[1, 1].plot(self.parameters[-1, 3], self.costs[-1], "kx")
             self.axs[1, 1].set_title("Width")
+            self.axs[1, 1].set_xlim(PARAMS_BOUNDS["pulse_width"][0], PARAMS_BOUNDS["pulse_width"][1])
 
             time.sleep(0.1)
             return

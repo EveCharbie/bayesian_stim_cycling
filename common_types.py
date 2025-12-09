@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional, Dict
 
+from constants import STIMULATION_RANGE
+
 
 @dataclass
 class StimParameters:
@@ -67,3 +69,35 @@ class StimParameters:
             # self.pulse_intensity_triceps_l,
             # self.pulse_width_triceps_l,
         ]
+
+    def add_angles_offset(self) -> StimParameters:
+        """
+        Return a new StimParameters instance with an offset added to all angle parameters.
+        """
+        def mod_angle(angle: float) -> float:
+            """Ensure angle is within [0, 360) degrees."""
+            if angle < 0:
+                return angle + 360
+            elif angle >= 360:
+                return angle % 360
+            else:
+                return angle
+
+        return StimParameters(
+            onset_deg_biceps_r=mod_angle(self.onset_deg_biceps_r + STIMULATION_RANGE["biceps_r"][0]),
+            offset_deg_biceps_r=mod_angle(self.offset_deg_biceps_r + STIMULATION_RANGE["biceps_r"][1]),
+            pulse_intensity_biceps_r=self.pulse_intensity_biceps_r,
+            pulse_width_biceps_r=self.pulse_width_biceps_r,
+            # onset_deg_triceps_r=mod_angle(self.onset_deg_triceps_r + STIMULATION_RANGE["triceps_r"][0]),
+            # offset_deg_triceps_r=mod_angle(self.offset_deg_triceps_r + STIMULATION_RANGE["triceps_r"][1]),
+            # pulse_intensity_triceps_r=self.pulse_intensity_triceps_r,
+            # pulse_width_triceps_r=self.pulse_width_triceps_r,
+            # onset_deg_biceps_l=mod_angle(self.onset_deg_biceps_l + STIMULATION_RANGE["biceps_l"][0]),
+            # offset_deg_biceps_l=mod_angle(self.offset_deg_biceps_l + STIMULATION_RANGE["biceps_l"][1]),
+            # pulse_intensity_biceps_l=self.pulse_intensity_biceps_l,
+            # pulse_width_biceps_l=self.pulse_width_biceps_l,
+            # onset_deg_triceps_l=mod_angle(self.onset_deg_triceps_l + STIMULATION_RANGE["triceps_l"][0]),
+            # offset_deg_triceps_l=mod_angle(self.offset_deg_triceps_l + STIMULATION_RANGE["triceps_l"][1]),
+            # pulse_intensity_triceps_l=self.pulse_intensity_triceps_l,
+            # pulse_width_triceps_l=self.pulse_width_triceps_l,
+        )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 from typing import Dict, List
 import time
+import pickle
 
 import numpy as np
 from skopt import gp_minimize
@@ -12,23 +13,9 @@ from pedal_worker import PedalWorker
 from stim_worker import StimulationWorker
 from common_types import StimParameters
 from live_plotter import LivePlotter
+from constants import MUSCLE_KEYS, PARAMS_BOUNDS
 
 from pedal_communication.data.data import DataType
-
-
-
-MUSCLES = (
-    "biceps_r",
-    # "triceps_r",
-    # "biceps_l",
-    # "triceps_l",
-)
-PARAMS_PER_MUSCLE = (
-    ("onset_deg", 0.0, 360.0),
-    ("offset_deg", 0.0, 360.0),
-    ("pulse_intensity", 0.0, 10),
-    ("pulse_width", 100.0, 500.0),
-)
 
 
 class BayesianOptimizationWorker:
@@ -83,8 +70,9 @@ class BayesianOptimizationWorker:
         Create skopt search space: 4 parameters × 4 muscles = 16 dimensions.
         """
         space: List[Real] = []
-        for muscle in MUSCLES:
-            for param_name, low, high in PARAMS_PER_MUSCLE:
+        for muscle in MUSCLE_KEYS:
+            for param_name in PARAMS_BOUNDS.keys():
+                low, high = PARAMS_BOUNDS[param_name]
                 dim_name = f"{param_name}_{muscle}"
                 space.append(Real(low, high, name=dim_name))
         self.space = space
@@ -174,10 +162,11 @@ class BayesianOptimizationWorker:
         """
         # Get the current parameters
         params = StimParameters.from_flat_vector(x)
-        print("[BO] Evaluating parameters:", params)
+        parameters = params.add_angles_offset()
+        print("[BO] Evaluating parameters:", parameters)
         
         # Update the stimulation worker with new parameters
-        self.worker_stim.controller.apply_parameters(params)
+        self.worker_stim.controller.apply_parameters(parameters)
         print("[BO] Applied new stimulation parameters.")
         
         # Clear the data collector buffer to start fresh
@@ -200,6 +189,19 @@ class BayesianOptimizationWorker:
 
         return cost
 
+    def save_results(self) -> None:
+        """
+        Save the BO results to a file.
+        """
+        results = {
+            "best_result": self.best_result,
+            "cost_list": self.cost_list,
+            "parameter_list": self.parameter_list,
+        }
+        with open("bo_results.pkl", "wb") as f:
+            pickle.dump(results, f)
+        print("[BO] Results saved to bo_results.pkl.")
+
     def run(self) -> None:
         """
         Main BO routine. Runs in a separate thread.
@@ -211,7 +213,7 @@ class BayesianOptimizationWorker:
             dimensions=self.space,
             n_calls=100,  # 6,
             n_initial_points=6,
-            acq_func="LCB",  # "LCB", "EI", "PI", "gp_hedge", "EIps", "PIps"
+            acq_func="PI",  # "LCB", "EI", "PI", "gp_hedge", "EIps", "PIps"
             kappa=5,  # *
             random_state=0,
             n_jobs=1,
@@ -220,3 +222,5 @@ class BayesianOptimizationWorker:
         print("[BO] Optimization finished.")
         print("[BO] Best parameters (flat vector):", self.best_result.x)
         print("[BO] Best cost:", self.best_result.fun)
+
+        self.save_results()

@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from pedal_worker import PedalWorker
 
 from common_types import StimParameters
+from constants import STIMULATION_RANGE, MUSCLE_KEYS
 
 from pysciencemode import Rehastim2 as St
 from pysciencemode import Channel as Ch
@@ -23,13 +24,6 @@ class HandCycling2:
     BO updates only the stimulation parameters.
     """
 
-    MUSCLE_KEYS = [
-        "biceps_r",
-        # "triceps_r",
-        # "biceps_l",
-        # "triceps_l",
-    ]
-
     def __init__(self, worker_pedal):
 
         self.worker_pedal = worker_pedal
@@ -44,7 +38,7 @@ class HandCycling2:
 
         # Default intensity for each muscle (will be overridden by BO)
         self.intensity = {
-            "biceps_r": 0,
+            "biceps_r": 7,
             # "triceps_r": 10,
             # "biceps_l": 10,
             # "triceps_l": 10,
@@ -73,20 +67,14 @@ class HandCycling2:
         }
 
         # Default stimulation ranges in degrees (will be overridden by BO)
-        # zero = main gauche devant
-        self.stimulation_range = {
-            "biceps_r": [220.0, 10.0],
-            # "triceps_r": [20.0, 180.0],
-            # "biceps_l": [40.0, 190.0],
-            # "triceps_l": [200.0, 360.0],
-        }
+        self.stimulation_range = {key: STIMULATION_RANGE[key] for key in STIMULATION_RANGE.keys()}
 
         self.list_channels = [
             Ch(
                 mode=Modes.SINGLE,
                 no_channel=i + 1,
                 amplitude=self.intensity[muscle_name],  # Intensity
-                pulse_width=350,
+                pulse_width=self.pulse_width[muscle_name],
                 name=channel_muscle_name[i],
                 device_type=Device.Rehastim2,
             )
@@ -121,7 +109,7 @@ class HandCycling2:
           - intensity per muscle
           - pulse_width per muscle
         """
-        for muscle in self.MUSCLE_KEYS:
+        for muscle in MUSCLE_KEYS:
             onset = int(getattr(params, f"onset_deg_{muscle}"))
             offset = int(getattr(params, f"offset_deg_{muscle}"))
             # intensity = int(getattr(params, f"pulse_intensity_{muscle}"))  # TODO: uncomment here to stim
