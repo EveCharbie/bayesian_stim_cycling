@@ -1,19 +1,20 @@
 from __future__ import annotations
 
+import logging
 import threading
-from typing import Dict, List
+from typing import Dict, List, Callable
 import time
 import pickle
 
 import numpy as np
-from skopt import gp_minimize
+# from skopt import gp_minimize
 from skopt.space import Real
 
 from pedal_worker import PedalWorker
 from stim_worker import StimulationWorker
 from common_types import StimParameters
 from live_plotter import LivePlotter
-from constants import MUSCLE_KEYS, PARAMS_BOUNDS
+from constants import MUSCLE_KEYS, PARAMS_BOUNDS, CUTOFF_ANGLES
 from bayesian_optimizer import BayesianOptimizer
 
 from pedal_communication.data.data import DataType
@@ -58,36 +59,49 @@ class BayesianOptimizationWorker:
         # Worker that handles live plotting
         self.worker_plot = worker_plot
 
-        self.space = None
+        self.space: dict[str, list[Real]] = {key: [] for key in MUSCLE_KEYS}
         self.build_search_space()
 
         # Store the iterations
-        self.cost_list: list[float] = []
+        self.cost_dict: dict[str, list[float]] = {key: [] for key in MUSCLE_KEYS}
         self.parameter_list: list[StimParameters] = []
         self._result_lock = threading.Lock()
         self._result_available = threading.Condition(self._result_lock)
 
-        self.best_result = None  # will hold gp_minimize's result
+        self.best_result_dict: dict[str, float] = {key: None for key in MUSCLE_KEYS}  # will hold gp_minimize's result
 
         # Debugging flag to avoid large stim during tests
         self.really_change_stim_intensity = really_change_stim_intensity
+
+        # cost functions for each muscle
+        self.cost_function: dict[str, Callable] = {
+            "biceps_r": self._biceps_r_cost,
+            "triceps_r": self._triceps_r_cost,
+            "biceps_l": self._biceps_l_cost,
+            "triceps_l": self._triceps_l_cost,
+        }
+
+        # Logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        )
+        self._logger = logging.getLogger("BayesianOptimizationWorker")
 
     def build_search_space(self):
         """
         Create skopt search space: 4 parameters × 4 muscles = 16 dimensions.
         """
-        space: List[Real] = []
         for muscle in MUSCLE_KEYS:
             for param_name in PARAMS_BOUNDS.keys():
                 low, high = PARAMS_BOUNDS[param_name]
                 dim_name = f"{param_name}_{muscle}"
-                space.append(Real(low, high, name=dim_name))
-        self.space = space
+                self.space[muscle].append(Real(low, high, name=dim_name))
 
     def get_num_cycles(self) -> int:
         """
         Count the number of complete cycles in the data collector buffer.
-        Each cycle is defined as angle going from 0° to 360°.
+        Each cycle is defined as angle going from -90° to 270°.
         """
         angles = self.worker_pedal.data_collector.data.values[:, DataType.A18.value]
         num_cycles = 0
@@ -99,6 +113,15 @@ class BayesianOptimizationWorker:
                     previous_angle - (nb_rotations * 2 * np.pi)):
                 num_cycles += 1
         return num_cycles
+
+    @staticmethod
+    def rotated_angle(angles: np.ndarray) -> np.ndarray:
+        """Shift the angle by -90 degrees and then wrap it to [0, 360] degrees."""
+        rotated_angles = np.zeros_like(angles)
+        for i_frame in range(angles.shape[0]):
+            shifted_angle = angles[i_frame] - np.pi/2  # Shift by -90 degrees
+            rotated_angles[i_frame] = shifted_angle % (2 * np.pi)  # Wrap to [0, 2π]
+        return rotated_angles
 
     def get_last_cycles_data(self) -> Dict[str, list[np.ndarray]]:
         """
@@ -135,7 +158,7 @@ class BayesianOptimizationWorker:
                     start_idx = last_idx
                     end_idx = last_bound
                     last_cycles_data["times_vector"].insert(0, times_vector[start_idx:end_idx])
-                    last_cycles_data["angles"].insert(0, angles[start_idx:end_idx])
+                    last_cycles_data["angles"].insert(0, self.rotated_angle(angles[start_idx:end_idx]))
                     last_cycles_data["left_power"].insert(0, left_power[start_idx:end_idx])
                     last_cycles_data["right_power"].insert(0, right_power[start_idx:end_idx])
                     last_cycles_data["total_power"].insert(0, total_power[start_idx:end_idx])
@@ -166,59 +189,205 @@ class BayesianOptimizationWorker:
         cost = total_left_power + total_right_power + 0.1 * (right_intensity + left_intensity)
         return float(cost)
 
-    def _objective(self, x: List[float]) -> float:
+    def _biceps_r_cost(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
+        # Angles
+        angles = np.hstack(last_cycles_data["angles"])
+        if np.any(angles < 0) or np.any(angles > 2*np.pi):
+            raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
+        angles_in_range_indices = np.where(
+            np.logical_and(
+                CUTOFF_ANGLES["right"][0] < angles,
+                angles < CUTOFF_ANGLES["right"][1],
+            )
+        )
+        if len(angles_in_range_indices) > 0:
+            angles_in_range_indices = angles_in_range_indices[0]
+
+        # Maximize power
+        right_power = np.hstack(last_cycles_data["right_power"])[angles_in_range_indices]
+        power = -np.sum(right_power ** 2)
+
+        # Minimize stimulation intensity
+        intensity = self.worker_stim.controller.intensity["biceps_r"] ** 2
+
+        cost = power + 0.1 * intensity
+        return float(cost)
+
+    def _triceps_r_cost(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
+        # Angles
+        angles = np.hstack(last_cycles_data["angles"])
+        if np.any(angles < 0) or np.any(angles > 2 * np.pi):
+            raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
+        angles_in_range_indices = np.where(
+            np.logical_or(
+                np.logical_and(
+                    0 < angles,
+                    angles < CUTOFF_ANGLES["right"][0],
+                ),
+                np.logical_and(
+                    CUTOFF_ANGLES["right"][1] < angles,
+                    angles < 2 * np.pi,
+                )
+            )
+        )
+        if len(angles_in_range_indices) > 0:
+            angles_in_range_indices = angles_in_range_indices[0]
+
+        # Maximize power
+        right_power = np.hstack(last_cycles_data["right_power"])[angles_in_range_indices]
+        power = -np.sum(right_power ** 2)
+
+        # Minimize stimulation intensity
+        intensity = self.worker_stim.controller.intensity["triceps_r"] ** 2
+
+        cost = power + 0.1 * intensity
+        return float(cost)
+
+    def _biceps_l_cost(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
+        # Angles
+        angles = np.hstack(last_cycles_data["angles"])
+        if np.any(angles < 0) or np.any(angles > 2 * np.pi):
+            raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
+        angles_in_range_indices = np.where(
+            np.logical_or(
+                np.logical_and(
+                    0 < angles,
+                    angles < CUTOFF_ANGLES["left"][0],
+                ),
+                np.logical_and(
+                    CUTOFF_ANGLES["left"][1] < angles,
+                    angles < 2*np.pi,
+                )
+            )
+        )
+        if len(angles_in_range_indices) > 0:
+            angles_in_range_indices = angles_in_range_indices[0]
+
+        # Maximize power
+        left_power = np.hstack(last_cycles_data["left_power"])[angles_in_range_indices]
+        power = -np.sum(left_power ** 2)
+
+        # Minimize stimulation intensity
+        intensity = self.worker_stim.controller.intensity["biceps_l"] ** 2
+
+        cost = power + 0.1 * intensity
+        return float(cost)
+
+    def _triceps_l_cost(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
+        # Angles
+        angles = np.hstack(last_cycles_data["angles"])
+        if np.any(angles < 0) or np.any(angles > 2 * np.pi):
+            raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
+        angles_in_range_indices = np.where(
+            np.logical_and(
+                CUTOFF_ANGLES["left"][0] < angles,
+                angles < CUTOFF_ANGLES["left"][1],
+            )
+        )
+        if len(angles_in_range_indices) > 0:
+            angles_in_range_indices = angles_in_range_indices[0]
+
+        # Maximize power
+        left_power = np.hstack(last_cycles_data["left_power"])[angles_in_range_indices]
+        power = -np.sum(left_power ** 2)
+
+        # Minimize stimulation intensity
+        intensity = self.worker_stim.controller.intensity["triceps_l"] ** 2
+
+        cost = power + 0.1 * intensity
+        return float(cost)
+
+    # def _objective(self, x: List[float]) -> float:
+    #     """
+    #     Objective passed to gp_minimize.
+    #     x is a flat vector of stimulation parameters.
+    #     """
+    #     # Get the current parameters
+    #     params = StimParameters.from_flat_vector(x)
+    #    parameters = params.add_angles_offset()
+    #     print("[BO WORKER] Evaluating parameters:", parameters)
+    #
+    #    # Update the stimulation worker with new parameters
+    #     self.worker_stim.controller.apply_parameters(parameters, self.really_change_stim_intensity)
+    #     print("[BO WORKER] Applied new stimulation parameters.")
+    #
+    #     # Clear the data collector buffer to start fresh
+    #     self.worker_pedal.data_collector.clear()
+    #
+    #     # Wait until a few cycles have been collected
+    #     while self.get_num_cycles() < self.nb_cycles_to_run:
+    #         time.sleep(0.1)
+    #     print("[BO WORKER] Required number of cycles collected.")
+    #
+    #     # Get cost value
+    #     last_cycles_data = self.get_last_cycles_data()
+    #     cost = self.get_cost_value(last_cycles_data)
+    #     print(f"[BO WORKER] Cost evaluated: {cost}")
+    #
+    #     # Update results and live plotter
+    #     self.cost_list.append(cost)
+    #     self.parameter_list.append(params)
+    #     self.worker_plot.update_data(self.cost_list, self.parameter_list)
+    #
+    #     return cost
+
+    def _make_an_interation(self, x: List[float]) -> list[float]:
         """
-        Objective passed to gp_minimize.
+        Send the stimulation parameters to the subject, measure the cost, and return it.
+        The parameters for all four muscles are tested at the same time.
         x is a flat vector of stimulation parameters.
         """
         # Get the current parameters
         params = StimParameters.from_flat_vector(x)
         parameters = params.add_angles_offset()
-        print("[BO WORKER] Evaluating parameters:", parameters)
-        
+        self._logger.info(f"Evaluating parameters: {parameters}")
+
         # Update the stimulation worker with new parameters
         self.worker_stim.controller.apply_parameters(parameters, self.really_change_stim_intensity)
-        print("[BO WORKER] Applied new stimulation parameters.")
-        
+        self._logger.info(f"Applied new stimulation parameters.")
+
         # Clear the data collector buffer to start fresh
         self.worker_pedal.data_collector.clear()
 
         # Wait until a few cycles have been collected
         while self.get_num_cycles() < self.nb_cycles_to_run:
             time.sleep(0.1)
-        print("[BO WORKER] Required number of cycles collected.")
+        self._logger.info(f"Required number of cycles collected.")
 
         # Get cost value
         last_cycles_data = self.get_last_cycles_data()
-        cost = self.get_cost_value(last_cycles_data)
-        print(f"[BO WORKER] Cost evaluated: {cost}")
+        cost_list = []
+        for muscle in MUSCLE_KEYS:
+            cost = self.cost_function[muscle](last_cycles_data)
+            cost_list += [cost]
 
-        # Update results and live plotter
-        self.cost_list.append(cost)
+            # Update results and live plotter
+            self.cost_dict[muscle].append(cost)
         self.parameter_list.append(params)
-        self.worker_plot.update_data(self.cost_list, self.parameter_list)
+        self.worker_plot.update_data(self.cost_dict, self.parameter_list)
 
-        return cost
+        return cost_list
 
     def save_results(self) -> None:
         """
         Save the BO results to a file.
         """
         results = {
-            "best_params": self.best_result.x,
-            "best_cost": self.best_result.fun,
-            "cost_list": self.cost_list,
+            "best_params": [self.best_result_dict[muscle].x for muscle in MUSCLE_KEYS],
+            "best_cost": [self.best_result_dict[muscle].fun for muscle in MUSCLE_KEYS],
+            "cost_list": self.cost_dict,
             "parameter_list": self.parameter_list,
         }
         with open("bo_results.pkl", "wb") as f:
             pickle.dump(results, f)
-        print("[BO WORKER] Results saved to bo_results.pkl.")
+        self._logger.info(f"Results saved to bo_results.pkl.")
 
     def run(self) -> None:
         """
         Main BO routine. Runs in a separate thread.
         """
-        print("[BO WORKER] Starting Bayesian optimization with continuous stimulation...")
+        self._logger.info(f"Starting Bayesian optimization with continuous stimulation...")
+
 
         # self.best_result = gp_minimize(
         #     func=self._objective,
@@ -232,18 +401,14 @@ class BayesianOptimizationWorker:
         # )  # x0, y0, kappa[exploitation, exploration], xi [minimal improvement default 0.01]
 
         bayesian_optimizer = BayesianOptimizer(
-            objective_func=self._objective,
+            iteration_func=self._make_an_interation,
             xi=0.01,
             length_scale=1.0,
         )
-        self.best_result = bayesian_optimizer.optimize(
-            n_iterations=20, 
+        self.best_result_dict = bayesian_optimizer.optimize(
+            n_iterations=30,
             nb_initialization_cycles=self.nb_initialization_cycles,
-            verbose=True,
         )
 
-        print("[BO WORKER] Optimization finished.")
-        print("[BO WORKER] Best parameters (flat vector):", self.best_result.x)
-        print("[BO WORKER] Best cost:", self.best_result.fun)
-
+        self._logger.info(f"Optimization finished.")
         self.save_results()

@@ -26,8 +26,8 @@ class LivePlotter:
         self._lock = threading.Lock()
 
         # Data to plot
-        self.costs = None
-        self.parameters = None
+        self.costs: dict[str, list[float]] = {key: [] for key in MUSCLE_KEYS}
+        self.parameters: list[StimParameters] = []
         self.angles = []
         self.left_powers = []
         self.right_powers = []
@@ -38,11 +38,12 @@ class LivePlotter:
         if self.thread:
             self.thread.join()
 
-    def update_data(self, cost_list: list[float], parameter_list: list[StimParameters]):
+    def update_data(self, cost_dict: dict[str, list[float]], parameter_list: list[StimParameters]):
         """Thread-safe data update"""
         with self._lock:
-            self.costs = np.array(cost_list)
-            parameters_array = np.empty((0, len(PARAMS_BOUNDS.keys())))
+            for muscle in MUSCLE_KEYS:
+                self.costs[muscle] = np.array(cost_dict[muscle])
+            parameters_array = np.empty((0, len(PARAMS_BOUNDS.keys()) * len(MUSCLE_KEYS)))
             for param in parameter_list:
                 parameters_array = np.vstack((parameters_array, param.to_flat_vector()))
             self.parameters = parameters_array
@@ -90,7 +91,7 @@ class LivePlotter:
     def _update_plots(self) -> None:
         """Update all plots with current data"""
 
-        if self.costs is None or self.parameters is None:
+        if len(self.costs[MUSCLE_KEYS[0]]) == 0 or len(self.parameters) == 0:
             # Wait for data to be collected
             time.sleep(0.05)
         else:
@@ -98,32 +99,32 @@ class LivePlotter:
             for ax in self.axs_optim.flat:
                 ax.cla()
 
-            colors = np.arange(100)[:len(self.costs)]
+            colors = np.arange(100)[:len(self.costs[MUSCLE_KEYS[0]])]
             # print(self.costs)
             # print(self.parameters)
 
             i_param = 0
-            n_muscles = len(MUSCLE_KEYS)
-            for i_muscle in range(n_muscles):
-                self.axs_optim[i_muscle, 0].scatter(self.parameters[:, i_param], self.costs, c=colors, cmap="viridis")
-                self.axs_optim[i_muscle, 0].plot(self.parameters[-1, i_param], self.costs[-1], "kx")
+            for i_muscle, muscle in enumerate(MUSCLE_KEYS):
+                self.axs_optim[i_muscle, 0].scatter(self.parameters[:, i_param], self.costs[muscle], c=colors, cmap="viridis")
+                self.axs_optim[i_muscle, 0].plot(self.parameters[-1, i_param], self.costs[muscle][-1], "kx")
                 self.axs_optim[i_muscle, 0].set_title("Onset")
                 # self.axs_optim[i_muscle, 0].set_xlim(STIMULATION_RANGE["biceps_r"][0] + PARAMS_BOUNDS["onset_deg"][0], STIMULATION_RANGE["biceps_r"][0] + PARAMS_BOUNDS["onset_deg"][1])
                 self.axs_optim[i_muscle, 0].set_xlim(PARAMS_BOUNDS["onset_deg"][0], PARAMS_BOUNDS["onset_deg"][1])
                 i_param += 1
 
-                self.axs_optim[i_muscle, 1].scatter(self.parameters[:, i_param], self.costs, c=colors, cmap="viridis")
-                self.axs_optim[i_muscle, 1].plot(self.parameters[-1, i_param], self.costs[-1], "kx")
+                self.axs_optim[i_muscle, 1].scatter(self.parameters[:, i_param], self.costs[muscle], c=colors, cmap="viridis")
+                self.axs_optim[i_muscle, 1].plot(self.parameters[-1, i_param], self.costs[muscle][-1], "kx")
                 self.axs_optim[i_muscle, 1].set_title("Offset")
                 # self.axs_optim[i_muscle, 1].set_xlim(STIMULATION_RANGE["biceps_r"][1] + PARAMS_BOUNDS["offset_deg"][0], STIMULATION_RANGE["biceps_r"][1] + PARAMS_BOUNDS["offset_deg"][1])
                 self.axs_optim[i_muscle, 1].set_xlim(PARAMS_BOUNDS["offset_deg"][0], PARAMS_BOUNDS["offset_deg"][1])
                 i_param += 1
 
-                self.axs_optim[i_muscle, 2].scatter(self.parameters[:, i_param], self.costs, c=colors, cmap="viridis")
-                self.axs_optim[i_muscle, 2].plot(self.parameters[-1, i_param], self.costs[-1], "kx")
+                self.axs_optim[i_muscle, 2].scatter(self.parameters[:, i_param], self.costs[muscle], c=colors, cmap="viridis")
+                self.axs_optim[i_muscle, 2].plot(self.parameters[-1, i_param], self.costs[muscle][-1], "kx")
                 self.axs_optim[i_muscle, 2].set_title("Intensity")
                 self.axs_optim[i_muscle, 2].set_xlim(PARAMS_BOUNDS["pulse_intensity"][0], PARAMS_BOUNDS["pulse_intensity"][1])
                 i_param += 1
+            self.fig_optim.tight_layout()
             time.sleep(0.1)
 
         if len(self.angles) == 0 or len(self.left_powers) == 0 or len(self.right_powers) == 0:
@@ -179,11 +180,15 @@ class LivePlotter:
                 color='c',
                 alpha=0.3,
             )
+            self.axs_power[0].plot(np.array([105, 105]) * np.pi / 180, [0, 1e6], 'k--', label='Power split')
+            self.axs_power[0].plot(np.array([290, 290]) * np.pi / 180, [0, 1e6], 'k--')
+            self.axs_power[1].plot(np.array([110, 110]) * np.pi / 180, [0, 1e6], 'k--')
+            self.axs_power[1].plot(np.array([285, 285]) * np.pi / 180, [0, 1e6], 'k--')
 
             # Add the power vs angle plots
             angles_rad = np.radians(self.angles)
-            self.axs_power[0].plot(angles_rad, self.left_powers, 'k')
-            self.axs_power[1].plot(angles_rad, self.right_powers, 'k')
+            self.axs_power[0].plot(angles_rad, self.left_powers, 'tab:red')
+            self.axs_power[1].plot(angles_rad, self.right_powers, 'tab:red')
 
             # Fix the limits of the polar plots
             self.axs_power[0].set_ylim(0, max(self.left_powers) * 1.1)

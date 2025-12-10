@@ -4,8 +4,16 @@
 STIMULATION_RANGE = {
     "biceps_r": [220 - 90, 10 - 90 + 360],
     "triceps_r": [20 - 90 + 360, 180 - 90],
+    # "delt_post_r": [220 - 90, 10 - 90 + 360],
+    # "delt_ant_r": [20 - 90 + 360, 180 - 90],
     "biceps_l": [40 - 90 + 360, 190 - 90],
     "triceps_l": [200 - 90, 360 - 90],
+    # "delt_post_l": [40 - 90 + 360, 190 - 90],
+    # "delt_ant_l": [200 - 90, 360 - 90],
+}
+CUTOFF_ANGLES = {
+    "right": [110, 285],  # In degrees (biceps_r is in this range)
+    "left": [105, 290],   # In degrees (triceps_l is in this range)
 }
 
 MUSCLE_KEYS = (
@@ -18,6 +26,6 @@ MUSCLE_KEYS = (
 PARAMS_BOUNDS = {
     "onset_deg": [-30.0, 30.0],
     "offset_deg": [-30.0, 30.0],
-    "pulse_intensity": [5, 15],  # TODO: Change these values to really stim
+    "pulse_intensity": [5, 12],  # TODO: Change these values to really stim
     # "pulse_intensity": [30, 50],
 }

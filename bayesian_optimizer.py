@@ -1,10 +1,12 @@
 from typing import Callable
+import logging
+
 import numpy as np
 from scipy.stats import norm
 from scipy.optimize import minimize
 from scipy.spatial.distance import cdist
 
-from constants import PARAMS_BOUNDS
+from constants import PARAMS_BOUNDS, MUSCLE_KEYS
 
 
 class OptimizationResults:
@@ -80,54 +82,61 @@ class BayesianOptimizer:
 
     def __init__(
             self,
-            objective_func: Callable,
+            iteration_func: Callable,
             xi: float = 0.01,
             length_scale: float = 1.0,
     ):
         """
         Parameters
         ----------
-        objective_func: The function to minimize
+        iteration_func: The function to minimize
         xi: Exploration parameter for Probability of Improvement. Higher values encourage exploration.
         length_scale: GP kernel length scale. Higher values lead to smoother functions.
         """
-        self.objective_func = objective_func
+        self.iteration_func = iteration_func
         self.n_params = len(PARAMS_BOUNDS.keys())
         self.xi = xi
-        self.gp = GaussianProcess(length_scale=length_scale)
+        self.gp = {key: GaussianProcess(length_scale=length_scale) for key in MUSCLE_KEYS}
 
-        self.input_observed = np.empty((0, self.n_params))
-        self.output_observed = np.empty((0, 1))
-        self.best_x = None
-        self.best_y = np.inf
+        self.input_observed = {key: np.empty((0, self.n_params)) for key in MUSCLE_KEYS}
+        self.output_observed = {key: np.empty((0, 1)) for key in MUSCLE_KEYS}
+        self.best_x = {key: np.empty((0, 1)) for key in MUSCLE_KEYS}
+        self.best_y = {key: np.inf for key in MUSCLE_KEYS}
+
+        # Logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        )
+        self._logger = logging.getLogger("BO OPTIM")
 
     @property
     def bounds(self) -> np.ndarray:
         """Get parameter bounds as a numpy array."""
         return np.array([PARAMS_BOUNDS[key] for key in PARAMS_BOUNDS.keys()])  # shape (n_params, 2)
 
-    def probability_of_improvement(self, x: np.ndarray) -> np.ndarray:
+    def probability_of_improvement(self, x: np.ndarray, muscle: str) -> np.ndarray:
         """
         Calculate Probability of Improvement at x.
         PI(x) = Φ((f_best - μ(x) - ξ) / σ(x))
         """
         x = np.array(x).reshape(-1, self.n_params)
-        mean, std = self.gp.predict(x)
+        mean, std = self.gp[muscle].predict(x)
 
         # Avoid division by zero
         std = np.maximum(std, 1e-10)
 
         # Calculate PI (for minimization)
-        z = (self.best_y - mean - self.xi) / std
+        z = (self.best_y[muscle] - mean - self.xi) / std
         pi = norm.cdf(z)
 
         return pi
 
-    def _acquisition_to_minimize(self, x):
+    def _acquisition_to_minimize(self, x: np.ndarray, muscle: str) -> float:
         """Negative PI for minimization."""
-        return -self.probability_of_improvement(x.reshape(1, -1))[0]
+        return -self.probability_of_improvement(x.reshape(1, -1), muscle)[0]
 
-    def suggest_next_point(self, n_restarts: int = 10):
+    def suggest_next_point(self, n_restarts: int = 10) -> np.ndarray:
         """
         Find the point that maximizes PI.
 
@@ -135,29 +144,32 @@ class BayesianOptimizer:
         ----------
         n_restarts: Number of random restarts for optimization
         """
-        best_x: float = None
-        best_acquisition: float = np.inf
+        next_x = []
+        for muscle in MUSCLE_KEYS:
+            best_x: list[float] = None
+            best_acquisition: float = np.inf
 
-        # Multi-start optimization
-        for _ in range(n_restarts):
-            # Random starting point
-            x0 = np.random.uniform(
-                self.bounds[:, 0],
-                self.bounds[:, 1]
-            )
+            # Multi-start optimization
+            for _ in range(n_restarts):
+                # Random starting point
+                x0 = np.random.uniform(
+                    self.bounds[:, 0],
+                    self.bounds[:, 1]
+                )
 
-            result = minimize(
-                self._acquisition_to_minimize,
-                x0=x0,
-                bounds=self.bounds,
-                method='L-BFGS-B'
-            )
+                result = minimize(
+                    lambda x: self._acquisition_to_minimize(x, muscle),
+                    x0=x0,
+                    bounds=self.bounds,
+                    method='L-BFGS-B',
+                )
 
-            if result.fun < best_acquisition:
-                best_acquisition = result.fun
-                best_x = result.x
+                if result.fun < best_acquisition:
+                    best_acquisition = result.fun
+                    best_x = result.x
 
-        return best_x
+            next_x += best_x.tolist()
+        return next_x
 
     def initialize(self, nb_initialization_cycles: int):
         """
@@ -167,58 +179,54 @@ class BayesianOptimizer:
         Parameters
             nb_initialization_cycles: Number of initial random samples
         """
-        intensity_increment = (PARAMS_BOUNDS["pulse_intensity"][1] - PARAMS_BOUNDS["pulse_intensity"][0]) / nb_initialization_cycles
+        intensity_increment = (PARAMS_BOUNDS["pulse_intensity"][1] - PARAMS_BOUNDS["pulse_intensity"][0]) / (nb_initialization_cycles - 1)
 
         for i_init in range(nb_initialization_cycles):
-            # Random angles
-            onset_this_time = np.random.uniform(
-                PARAMS_BOUNDS["onset_deg"][0],
-                PARAMS_BOUNDS["onset_deg"][1],
-            )
-            offset_this_time = np.random.uniform(
-                PARAMS_BOUNDS["offset_deg"][0],
-                PARAMS_BOUNDS["offset_deg"][1],
-            )
+            # Get the initial parameters to test
+            x = []
+            x_all = []
+            for muscle in MUSCLE_KEYS:
+                # Random angles
+                onset_this_time = np.random.uniform(
+                    PARAMS_BOUNDS["onset_deg"][0],
+                    PARAMS_BOUNDS["onset_deg"][1],
+                )
+                offset_this_time = np.random.uniform(
+                    PARAMS_BOUNDS["offset_deg"][0],
+                    PARAMS_BOUNDS["offset_deg"][1],
+                )
 
-            # Incremental intensity
-            intensity_this_time = PARAMS_BOUNDS["pulse_intensity"][0] + i_init * intensity_increment
+                # Incremental intensity
+                intensity_this_time = PARAMS_BOUNDS["pulse_intensity"][0] + i_init * intensity_increment
 
-            # stim_params = StimParameters(
-            #         onset_deg_biceps_r=onset_this_time,
-            #         offset_deg_biceps_r=offset_this_time,
-            #         pulse_intensity_biceps_r=intensity_this_time,
-            #     )
-            x = [onset_this_time, offset_this_time, intensity_this_time]
-            y = np.array([self.objective_func(x)]).reshape(1, 1)
-            x = np.array(x).reshape(1, 3)
+                x += [[onset_this_time, offset_this_time, intensity_this_time]]
+                x_all += [onset_this_time, offset_this_time, intensity_this_time]
 
-            self.input_observed = np.vstack((self.input_observed, x))
-            self.output_observed = np.vstack((self.output_observed, y))
+            cost_list = self.iteration_func(x_all)
+            for i_muscle, muscle in enumerate(MUSCLE_KEYS):
+                y = np.array(cost_list[i_muscle]).reshape(1, 1)
 
-            if y < self.best_y:
-                self.best_y = y
-                self.best_x = x.copy()
+                self.input_observed[muscle] = np.vstack((self.input_observed[muscle], np.array(x[i_muscle]).reshape(1, 3)))
+                self.output_observed[muscle] = np.vstack((self.output_observed[muscle], y))
 
-        self.gp.fit(self.input_observed, self.output_observed)
+                if y < self.best_y[muscle]:
+                    self.best_y[muscle] = float(y)
+                    self.best_x[muscle] = x[i_muscle].copy()
 
-    def optimize(self, n_iterations: int = 20, nb_initialization_cycles: int = 8, verbose: bool = True):
+        for muscle in MUSCLE_KEYS:
+            self.gp[muscle].fit(self.input_observed[muscle], self.output_observed[muscle])
+
+    def optimize(self, n_iterations: int = 20, nb_initialization_cycles: int = 8) -> dict[str, OptimizationResults]:
         """
         Run the Bayesian Optimization loop.
 
         Parameters:
             n_iterations: Number of optimization iterations
             nb_initialization_cycles: Number of initial incremental steps to evaluate before starting the optimization.
-            verbose: Print progress
         """
         # Initialize with random samples
-        if verbose:
-            print("[BO OPTIM] Initializing with random samples...")
+        self._logger.info(f"Initializing with random samples...")
         self.initialize(nb_initialization_cycles)
-
-        if verbose:
-            print(f"[BO OPTIM] Initial best: {self.best_y[0]}")
-            print(f"[BO OPTIM] Initial best params: {self.best_x[0, 0], self.best_x[0, 1], self.best_x[0, 2]}")
-            print("[BO OPTIM] \nStarting optimization...")
 
         # Main optimization loop
         for i_iter in range(n_iterations):
@@ -226,23 +234,24 @@ class BayesianOptimizer:
             next_x = self.suggest_next_point()
 
             # Evaluate objective function
-            next_y = self.objective_func(next_x)
+            next_y = self.iteration_func(next_x)
 
             # Update observations
-            self.input_observed = np.vstack((self.input_observed, next_x))
-            self.output_observed = np.vstack((self.output_observed, next_y))
+            for i_muscle, muscle in enumerate(MUSCLE_KEYS):
+                parameters_this_muscle = np.array(next_x[i_muscle * 3:(i_muscle + 1) * 3]).reshape(1, 3)
+                self.input_observed[muscle] = np.vstack((self.input_observed[muscle], parameters_this_muscle))
+                self.output_observed[muscle] = np.vstack((self.output_observed[muscle], next_y[i_muscle]))
 
-            # Update best
-            if next_y < self.best_y:
-                self.best_y = next_y
-                self.best_x = next_x.copy()
+                # Update best
+                if next_y[i_muscle] < self.best_y[muscle]:
+                    self.best_y[muscle] = next_y[i_muscle]
+                    self.best_x[muscle] = parameters_this_muscle
 
-            # Refit GP
-            self.gp.fit(self.input_observed, self.output_observed)
+                # Refit GP
+                self.gp[muscle].fit(self.input_observed[muscle], self.output_observed[muscle])
 
-            if verbose:
-                print(f"[BO OPTIM] Iteration {i_iter + 1}/{n_iterations}: "
-                      f"y = {next_y}, best = {self.best_y}")
+                self._logger.info(f"[BO OPTIM] Iteration {i_iter + 1}/{n_iterations}: "
+                                  f"y = {next_y[i_muscle]}, best = {self.best_y[muscle]}")
 
-        return OptimizationResults(self.best_x, self.best_y)
+        return {muscle: OptimizationResults(self.best_x[muscle], self.best_y[muscle]) for muscle in MUSCLE_KEYS}
 
