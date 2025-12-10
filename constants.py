@@ -2,9 +2,9 @@
 
 # Zero = left hand in front
 STIMULATION_RANGE = {
-    "biceps_r": [220 - 90, 10 - 90],
-    "triceps_r": [20 - 90, 180 - 90],
-    "biceps_l": [40 - 90, 190 - 90],
+    "biceps_r": [220 - 90, 10 - 90 + 360],
+    "triceps_r": [20 - 90 + 360, 180 - 90],
+    "biceps_l": [40 - 90 + 360, 190 - 90],
     "triceps_l": [200 - 90, 360 - 90],
 }
 
