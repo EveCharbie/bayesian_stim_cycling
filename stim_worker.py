@@ -248,6 +248,5 @@ class StimulationWorker:
         self.controller.stimulator.pause_stimulation()
         self.controller.stimulator.end_stimulation()
         self.controller.stimulator.disconnect()
-        self.controller.stimulator.close_port()
         self._keep_running = False
 
