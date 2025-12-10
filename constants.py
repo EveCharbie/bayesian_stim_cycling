@@ -9,10 +9,10 @@ STIMULATION_RANGE = {
 }
 
 MUSCLE_KEYS = (
-    "biceps_r",
-    "triceps_r",
-    "biceps_l",
-    "triceps_l",
+    "biceps_r",   # Channel 1
+    "triceps_r",  # Channel 2
+    "biceps_l",   # Channel 3
+    "triceps_l",  # Channel 4
 )
 
 PARAMS_BOUNDS = {

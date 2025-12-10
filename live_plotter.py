@@ -1,4 +1,3 @@
-import pickle
 from pathlib import Path
 import threading
 import time
@@ -10,7 +9,7 @@ matplotlib.use("TkAgg")  # or 'Qt5Agg'
 import matplotlib.pyplot as plt
 
 from common_types import StimParameters
-from constants import STIMULATION_RANGE, PARAMS_BOUNDS
+from constants import PARAMS_BOUNDS, MUSCLE_KEYS
 
 
 class LivePlotter:
@@ -45,13 +44,14 @@ class LivePlotter:
 
     def _initialize_plots(self):
         """Initialize the plot window"""
-        self.fig, self.axs = plt.subplots(2, 2, figsize=(12, 8))
+        n_muscles = len(MUSCLE_KEYS)
+        self.fig, self.axs = plt.subplots(n_muscles, 3, figsize=(12, 8))
         plt.ion()
 
-        self.axs[0, 0].set_title("Onset")
-        self.axs[0, 1].set_title("Offset")
-        self.axs[1, 0].set_title("Intensity")
-        self.axs[1, 1].set_title("Width")
+        for i_muscle in range(n_muscles):
+            self.axs[i_muscle, 0].set_title("Onset")
+            self.axs[i_muscle, 1].set_title("Offset")
+            self.axs[i_muscle, 2].set_title("Intensity")
 
     def run(self):
         """Main plotting loop"""
@@ -83,28 +83,28 @@ class LivePlotter:
             # print(self.costs)
             # print(self.parameters)
 
-            self.axs[0, 0].scatter(self.parameters[:, 0], self.costs, c=colors, cmap="viridis")
-            self.axs[0, 0].plot(self.parameters[-1, 0], self.costs[-1], "kx")
-            self.axs[0, 0].set_title("Onset")
-            # self.axs[0, 0].set_xlim(STIMULATION_RANGE["biceps_r"][0] + PARAMS_BOUNDS["onset_deg"][0], STIMULATION_RANGE["biceps_r"][0] + PARAMS_BOUNDS["onset_deg"][1])
-            self.axs[0, 0].set_xlim(PARAMS_BOUNDS["onset_deg"][0], PARAMS_BOUNDS["onset_deg"][1])
+            i_param = 0
+            n_muscles = len(MUSCLE_KEYS)
+            for i_muscle in range(n_muscles):
+                self.axs[i_muscle, 0].scatter(self.parameters[:, i_param], self.costs, c=colors, cmap="viridis")
+                self.axs[i_muscle, 0].plot(self.parameters[-1, i_param], self.costs[-1], "kx")
+                self.axs[i_muscle, 0].set_title("Onset")
+                # self.axs[i_muscle, 0].set_xlim(STIMULATION_RANGE["biceps_r"][0] + PARAMS_BOUNDS["onset_deg"][0], STIMULATION_RANGE["biceps_r"][0] + PARAMS_BOUNDS["onset_deg"][1])
+                self.axs[i_muscle, 0].set_xlim(PARAMS_BOUNDS["onset_deg"][0], PARAMS_BOUNDS["onset_deg"][1])
+                i_param += 1
 
-            self.axs[0, 1].scatter(self.parameters[:, 1], self.costs, c=colors, cmap="viridis")
-            self.axs[0, 1].plot(self.parameters[-1, 1], self.costs[-1], "kx")
-            self.axs[0, 1].set_title("Offset")
-            # self.axs[0, 1].set_xlim(STIMULATION_RANGE["biceps_r"][1] + PARAMS_BOUNDS["offset_deg"][0], STIMULATION_RANGE["biceps_r"][1] + PARAMS_BOUNDS["offset_deg"][1])
-            self.axs[0, 0].set_xlim(PARAMS_BOUNDS["offset_deg"][0], PARAMS_BOUNDS["offset_deg"][1])
+                self.axs[i_muscle, 1].scatter(self.parameters[:, i_param], self.costs, c=colors, cmap="viridis")
+                self.axs[i_muscle, 1].plot(self.parameters[-1, i_param], self.costs[-1], "kx")
+                self.axs[i_muscle, 1].set_title("Offset")
+                # self.axs[i_muscle, 1].set_xlim(STIMULATION_RANGE["biceps_r"][1] + PARAMS_BOUNDS["offset_deg"][0], STIMULATION_RANGE["biceps_r"][1] + PARAMS_BOUNDS["offset_deg"][1])
+                self.axs[i_muscle, 1].set_xlim(PARAMS_BOUNDS["offset_deg"][0], PARAMS_BOUNDS["offset_deg"][1])
+                i_param += 1
 
-            self.axs[1, 0].scatter(self.parameters[:, 2], self.costs, c=colors, cmap="viridis")
-            self.axs[1, 0].plot(self.parameters[-1, 2], self.costs[-1], "kx")
-            self.axs[1, 0].set_title("Intensity")
-            self.axs[1, 0].set_xlim(PARAMS_BOUNDS["pulse_intensity"][0], PARAMS_BOUNDS["pulse_intensity"][1])
-
-            # self.axs[1, 1].scatter(self.parameters[:, 3], self.costs, c=colors, cmap="viridis")
-            # self.axs[1, 1].plot(self.parameters[-1, 3], self.costs[-1], "kx")
-            # self.axs[1, 1].set_title("Width")
-            # self.axs[1, 1].set_xlim(PARAMS_BOUNDS["pulse_width"][0], PARAMS_BOUNDS["pulse_width"][1])
-            self.axs[1, 1].axis('off')
+                self.axs[i_muscle, 2].scatter(self.parameters[:, i_param], self.costs, c=colors, cmap="viridis")
+                self.axs[i_muscle, 2].plot(self.parameters[-1, i_param], self.costs[-1], "kx")
+                self.axs[i_muscle, 2].set_title("Intensity")
+                self.axs[i_muscle, 2].set_xlim(PARAMS_BOUNDS["pulse_intensity"][0], PARAMS_BOUNDS["pulse_intensity"][1])
+                i_param += 1
 
             time.sleep(0.1)
             return

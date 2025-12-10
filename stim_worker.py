@@ -29,41 +29,28 @@ class HandCycling2:
         self.worker_pedal = worker_pedal
 
         # ----------------- Stimulator setup ----------------- #
-        channel_muscle_name = [
-            "biceps_r",
-            # "triceps_r",
-            # "biceps_l",
-            # "triceps_l",
-        ]
-
         # Default intensity for each muscle (will be overridden by BO)
         self.intensity = {
             "biceps_r": 1,
-            # "triceps_r": 10,
-            # "biceps_l": 10,
-            # "triceps_l": 10,
+            "triceps_r": 1,
+            "biceps_l": 1,
+            "triceps_l": 1,
         }
 
-        # Default pulse width for each muscle (will be overridden by BO)
+        # Pulse width for each muscle
         self.pulse_width = {
             "biceps_r": 300,
-            # "triceps_r": 100,
-            # "biceps_l": 100,
-            # "triceps_l": 100,
+            "triceps_r": 300,
+            "biceps_l": 300,
+            "triceps_l": 300,
         }
 
-        self.channel_number = {
-            "biceps_r": 1,
-            # "triceps_r": 2,
-            # "biceps_l": 3,
-            # "triceps_l": 4,
-        }
-
+        # Keeps track of if the stimulation is currently active for each muscle
         self.stimulation_state = {
             "biceps_r": False,
-            # "triceps_r": False,
-            # "biceps_l": False,
-            # "triceps_l": False,
+            "triceps_r": False,
+            "biceps_l": False,
+            "triceps_l": False,
         }
 
         # Default stimulation ranges in degrees (will be overridden by BO)
@@ -75,10 +62,10 @@ class HandCycling2:
                 no_channel=i + 1,
                 amplitude=self.intensity[muscle_name],  # Intensity
                 pulse_width=self.pulse_width[muscle_name],
-                name=channel_muscle_name[i],
+                name=MUSCLE_KEYS[i],
                 device_type=Device.Rehastim2,
             )
-            for i, muscle_name in enumerate(channel_muscle_name)
+            for i, muscle_name in enumerate(MUSCLE_KEYS)
         ]
 
         # Create stimulator
@@ -95,9 +82,9 @@ class HandCycling2:
         self.previous_speed = 0.0      # last speed (deg/s)
         self.previous_time = time.perf_counter()
 
-        # (optional, for debugging)
-        self.sensix_angle = 0.0        # last real angle from pedal (deg)
-        self.sensix_speed = 0.0        # last real speed from pedal (deg/s)
+        # # (optional, for debugging)
+        # self.sensix_angle = 0.0        # last real angle from pedal (deg)
+        # self.sensix_speed = 0.0        # last real speed from pedal (deg/s)
 
         # ----------------- Start stimulation once ----------------- #
         self.stimulator.start_stimulation(upd_list_channels=self.list_channels)
@@ -113,7 +100,6 @@ class HandCycling2:
             onset = int(getattr(params, f"onset_deg_{muscle}"))
             offset = int(getattr(params, f"offset_deg_{muscle}"))
             intensity = int(getattr(params, f"pulse_intensity_{muscle}"))
-            # pulse_width = int(getattr(params, f"pulse_width_{muscle}"))
 
             # Update angle range [onset, offset]
             self.stimulation_range[muscle] = [onset, offset]
@@ -121,9 +107,6 @@ class HandCycling2:
             # Update intensity
             if really_change_stim_intensity:
                 self.intensity[muscle] = intensity
-
-            # Update pulse width
-            # self.pulse_width[muscle] = pulse_width
 
 
     # # ---------- called when pedal worker has a new real sample ----------
@@ -181,9 +164,8 @@ class HandCycling2:
         self.angle = self.worker_pedal.get_latest_angle()
         for key in self.stimulation_range.keys():
             onset, offset = self.stimulation_range[key]
-            # cond = self.stim_condition[key]
             is_stimulation_active = self.stimulation_state[key]
-            ch_idx = self.channel_number[key] - 1
+            ch_idx = MUSCLE_KEYS.index(key) - 1
             channel = self.list_channels[ch_idx]
 
             if self.angle > 360.0 or self.angle < 0:

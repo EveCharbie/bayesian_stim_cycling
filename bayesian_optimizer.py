@@ -4,7 +4,6 @@ from scipy.stats import norm
 from scipy.optimize import minimize
 from scipy.spatial.distance import cdist
 
-from common_types import StimParameters
 from constants import PARAMS_BOUNDS
 
 

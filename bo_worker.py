@@ -154,12 +154,16 @@ class BayesianOptimizationWorker:
         total_right_power = -np.sum(right_power ** 2)
 
         # Minimize stimulation intensity
-        right_intensity = self.worker_stim.controller.intensity["biceps_r"] ** 2
-        #                    + self.worker_stim.controller.intensity["triceps_r"] ** 2)
-        # left_intensity = self.worker_stim.controller.intensity["biceps_l"] ** 2 + \
-        #                  self.worker_stim.controller.intensity["triceps_l"] ** 2
+        right_intensity = (
+                self.worker_stim.controller.intensity["biceps_r"] ** 2 +
+                self.worker_stim.controller.intensity["triceps_r"] ** 2
+        )
+        left_intensity = (
+                self.worker_stim.controller.intensity["biceps_l"] ** 2 +
+                self.worker_stim.controller.intensity["triceps_l"] ** 2
+        )
 
-        cost = total_left_power + total_right_power + 0.1 * (right_intensity)
+        cost = total_left_power + total_right_power + 0.1 * (right_intensity + left_intensity)
         return float(cost)
 
     def _objective(self, x: List[float]) -> float:
