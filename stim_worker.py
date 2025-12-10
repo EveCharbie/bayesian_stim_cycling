@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from typing import Optional, TYPE_CHECKING
@@ -216,21 +217,37 @@ class StimulationWorker:
         # Worker that provides pedal data
         self.worker_pedal = worker_pedal
 
+        # Logger
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        )
+        self._logger = logging.getLogger("StimlWorker")
+
     def run(self) -> None:
 
-        while self._keep_running:
-
-            should_activate_stim, should_deactivate_stim = self.controller.update_stimulation_for_current_angle()
-            if should_deactivate_stim or should_activate_stim:
-                # Only call when intensity or pulse width changed
-                # Start is misleading, it should be called update
-                self.controller.stimulator.start_stimulation(
-                    upd_list_channels=self.controller.list_channels
-                )
-
-            time.sleep(0.001)
+        try:
+            while self._keep_running:
+                should_activate_stim, should_deactivate_stim = self.controller.update_stimulation_for_current_angle()
+                if should_deactivate_stim or should_activate_stim:
+                    # Only call when intensity or pulse width changed
+                    # Start is misleading, it should be called update
+                    self.controller.stimulator.start_stimulation(
+                        upd_list_channels=self.controller.list_channels
+                    )
+                time.sleep(0.001)
+        finally:
+            self._logger.info("Stopping StimWorker...")
+            try:
+                self.stop()
+            except Exception as exc:
+                self._logger.exception("Error while stopping StimWorker: %s", exc)
+            self._logger.info("Stimulation worker stopped.")
 
     def stop(self):
         self.controller.stimulator.pause_stimulation()
+        self.controller.stimulator.end_stimulation()
+        self.controller.stimulator.disconnect()
+        self.controller.stimulator.close_port()
         self._keep_running = False
 
