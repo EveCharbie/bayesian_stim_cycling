@@ -94,7 +94,7 @@ class BayesianOptimizer:
         length_scale: GP kernel length scale. Higher values lead to smoother functions.
         """
         self.iteration_func = iteration_func
-        self.n_params = len(PARAMS_BOUNDS.keys())
+        self.n_params = 3
         self.xi = xi
         self.gp = {key: GaussianProcess(length_scale=length_scale) for key in MUSCLE_KEYS}
 
@@ -110,10 +110,9 @@ class BayesianOptimizer:
         )
         self._logger = logging.getLogger("BO OPTIM")
 
-    @property
-    def bounds(self) -> np.ndarray:
+    def bounds(self, muscle: str) -> np.ndarray:
         """Get parameter bounds as a numpy array."""
-        return np.array([PARAMS_BOUNDS[key] for key in PARAMS_BOUNDS.keys()])  # shape (n_params, 2)
+        return np.array([PARAMS_BOUNDS[muscle][key] for key in PARAMS_BOUNDS[muscle].keys()])  # shape (n_params, 2)
 
     def probability_of_improvement(self, x: np.ndarray, muscle: str) -> np.ndarray:
         """
@@ -153,14 +152,14 @@ class BayesianOptimizer:
             for _ in range(n_restarts):
                 # Random starting point
                 x0 = np.random.uniform(
-                    self.bounds[:, 0],
-                    self.bounds[:, 1]
+                    self.bounds(muscle)[:, 0],
+                    self.bounds(muscle)[:, 1]
                 )
 
                 result = minimize(
                     lambda x: self._acquisition_to_minimize(x, muscle),
                     x0=x0,
-                    bounds=self.bounds,
+                    bounds=self.bounds(muscle),
                     method='L-BFGS-B',
                 )
 
@@ -179,25 +178,26 @@ class BayesianOptimizer:
         Parameters
             nb_initialization_cycles: Number of initial random samples
         """
-        intensity_increment = (PARAMS_BOUNDS["pulse_intensity"][1] - PARAMS_BOUNDS["pulse_intensity"][0]) / (nb_initialization_cycles - 1)
-
         for i_init in range(nb_initialization_cycles):
             # Get the initial parameters to test
             x = []
             x_all = []
             for muscle in MUSCLE_KEYS:
+                intensity_increment = (PARAMS_BOUNDS[muscle]["pulse_intensity"][1] - PARAMS_BOUNDS[muscle]["pulse_intensity"][0]) / (
+                            nb_initialization_cycles - 1)
+
                 # Random angles
                 onset_this_time = np.random.uniform(
-                    PARAMS_BOUNDS["onset_deg"][0],
-                    PARAMS_BOUNDS["onset_deg"][1],
+                    PARAMS_BOUNDS[muscle]["onset_deg"][0],
+                    PARAMS_BOUNDS[muscle]["onset_deg"][1],
                 )
                 offset_this_time = np.random.uniform(
-                    PARAMS_BOUNDS["offset_deg"][0],
-                    PARAMS_BOUNDS["offset_deg"][1],
+                    PARAMS_BOUNDS[muscle]["offset_deg"][0],
+                    PARAMS_BOUNDS[muscle]["offset_deg"][1],
                 )
 
                 # Incremental intensity
-                intensity_this_time = PARAMS_BOUNDS["pulse_intensity"][0] + i_init * intensity_increment
+                intensity_this_time = PARAMS_BOUNDS[muscle]["pulse_intensity"][0] + i_init * intensity_increment
 
                 x += [[onset_this_time, offset_this_time, intensity_this_time]]
                 x_all += [onset_this_time, offset_this_time, intensity_this_time]

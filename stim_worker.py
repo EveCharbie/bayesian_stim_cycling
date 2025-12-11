@@ -32,10 +32,10 @@ class HandCycling2:
         # ----------------- Stimulator setup ----------------- #
         # Default intensity for each muscle (will be overridden by BO)
         self.intensity = {
-            "biceps_r": 10,
-            "triceps_r": 10,
-            "biceps_l": 10,
-            "triceps_l": 10,
+            "biceps_r": 1,
+            "triceps_r": 1,
+            "biceps_l": 1,
+            "triceps_l": 1,
         }
 
         # Pulse width for each muscle

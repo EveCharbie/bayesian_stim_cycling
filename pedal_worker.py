@@ -5,6 +5,7 @@ import threading
 import time
 from typing import Tuple, Callable, Optional
 import math
+import numpy as np
 
 from live_plotter import LivePlotter
 
@@ -79,7 +80,7 @@ class PedalWorker:
             self._previous_speed = speed
             self._previous_time = now
             self._angle_estimate = angle
-        print("Measured angle :", self._previous_angle)
+        # print("Measured angle :", self._previous_angle)
 
     def calculate_angle(self) -> None:
         """
@@ -89,7 +90,7 @@ class PedalWorker:
         with self._lock:
             dt = now - self._previous_time
             self._angle_estimate = (self._previous_angle + self._previous_speed * dt) % 360.0
-            print("Calculated angle :", self._angle_estimate)
+            # print("Calculated angle :", self._angle_estimate)
 
     def get_latest_values(self) -> Tuple[float, float, float, float]:
         """Return (angle, speed, power) for the most recent sample."""
@@ -100,6 +101,59 @@ class PedalWorker:
         """Return the most recent estimated angle (in degrees)."""
         with self._lock:
             return self._angle_estimate
+
+    @staticmethod
+    def rotated_angle(angles: np.ndarray) -> np.ndarray:
+        """Shift the angle by -90 degrees and then wrap it to [0, 360] degrees."""
+        rotated_angles = np.zeros_like(angles)
+        for i_frame in range(angles.shape[0]):
+            shifted_angle = angles[i_frame] - np.pi/2  # Shift by -90 degrees
+            rotated_angles[i_frame] = shifted_angle % (2 * np.pi)  # Wrap to [0, 2π]
+        return rotated_angles
+
+    def get_last_cycle_data(self) -> dict[str, list[np.ndarray]]:
+        """
+        Extract the last nb_cycles from the data collector buffer.
+        Each cycle is defined as angle going from 0° to 360°.
+        """
+        times_vector = self.data_collector.data.timestamp
+        angles = self.data_collector.data.values[:, DataType.A18.value]
+        left_power = self.data_collector.data.values[:, DataType.A36.value]
+        right_power = self.data_collector.data.values[:, DataType.A37.value]
+        total_power = self.data_collector.data.values[:, DataType.A38.value]
+
+        last_cycle_data = {
+            "times_vector": [],
+            "angles": [],
+            "left_power": [],
+            "right_power": [],
+            "total_power": [],
+        }
+        last_idx = len(angles) - 1
+        last_bound = None
+        while last_idx > 0:
+            current_angle = angles[last_idx]
+            previous_angle = angles[last_idx - 1]
+            nb_rotations = current_angle // (2 * np.pi)
+            if np.sign(current_angle - (nb_rotations * 2 * np.pi)) != np.sign(
+                    previous_angle - (nb_rotations * 2 * np.pi)):
+                if last_bound is None:
+                    # The end of the last cycle was detected
+                    last_bound = last_idx
+                else:
+                    # The beginning of this cycle was detected, extract data for this cycle
+                    start_idx = last_idx
+                    end_idx = last_bound
+                    last_cycle_data["times_vector"].insert(0, times_vector[start_idx:end_idx])
+                    last_cycle_data["angles"].insert(0, self.rotated_angle(angles[start_idx:end_idx]))
+                    last_cycle_data["left_power"].insert(0, left_power[start_idx:end_idx])
+                    last_cycle_data["right_power"].insert(0, right_power[start_idx:end_idx])
+                    last_cycle_data["total_power"].insert(0, total_power[start_idx:end_idx])
+                    last_bound = last_idx
+
+            last_idx -= 1
+
+        return last_cycle_data
 
     @staticmethod
     def wait():

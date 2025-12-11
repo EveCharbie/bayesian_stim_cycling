@@ -43,7 +43,7 @@ class LivePlotter:
         with self._lock:
             for muscle in MUSCLE_KEYS:
                 self.costs[muscle] = np.array(cost_dict[muscle])
-            parameters_array = np.empty((0, len(PARAMS_BOUNDS.keys()) * len(MUSCLE_KEYS)))
+            parameters_array = np.empty((0, len(PARAMS_BOUNDS["biceps_r"].keys()) * len(MUSCLE_KEYS)))
             for param in parameter_list:
                 parameters_array = np.vstack((parameters_array, param.to_flat_vector()))
             self.parameters = parameters_array
@@ -109,20 +109,20 @@ class LivePlotter:
                 self.axs_optim[i_muscle, 0].plot(self.parameters[-1, i_param], self.costs[muscle][-1], "kx")
                 self.axs_optim[i_muscle, 0].set_title("Onset")
                 # self.axs_optim[i_muscle, 0].set_xlim(STIMULATION_RANGE["biceps_r"][0] + PARAMS_BOUNDS["onset_deg"][0], STIMULATION_RANGE["biceps_r"][0] + PARAMS_BOUNDS["onset_deg"][1])
-                self.axs_optim[i_muscle, 0].set_xlim(PARAMS_BOUNDS["onset_deg"][0], PARAMS_BOUNDS["onset_deg"][1])
+                self.axs_optim[i_muscle, 0].set_xlim(PARAMS_BOUNDS[muscle]["onset_deg"][0], PARAMS_BOUNDS[muscle]["onset_deg"][1])
                 i_param += 1
 
                 self.axs_optim[i_muscle, 1].scatter(self.parameters[:, i_param], self.costs[muscle], c=colors, cmap="viridis")
                 self.axs_optim[i_muscle, 1].plot(self.parameters[-1, i_param], self.costs[muscle][-1], "kx")
                 self.axs_optim[i_muscle, 1].set_title("Offset")
                 # self.axs_optim[i_muscle, 1].set_xlim(STIMULATION_RANGE["biceps_r"][1] + PARAMS_BOUNDS["offset_deg"][0], STIMULATION_RANGE["biceps_r"][1] + PARAMS_BOUNDS["offset_deg"][1])
-                self.axs_optim[i_muscle, 1].set_xlim(PARAMS_BOUNDS["offset_deg"][0], PARAMS_BOUNDS["offset_deg"][1])
+                self.axs_optim[i_muscle, 1].set_xlim(PARAMS_BOUNDS[muscle]["offset_deg"][0], PARAMS_BOUNDS[muscle]["offset_deg"][1])
                 i_param += 1
 
                 self.axs_optim[i_muscle, 2].scatter(self.parameters[:, i_param], self.costs[muscle], c=colors, cmap="viridis")
                 self.axs_optim[i_muscle, 2].plot(self.parameters[-1, i_param], self.costs[muscle][-1], "kx")
                 self.axs_optim[i_muscle, 2].set_title("Intensity")
-                self.axs_optim[i_muscle, 2].set_xlim(PARAMS_BOUNDS["pulse_intensity"][0], PARAMS_BOUNDS["pulse_intensity"][1])
+                self.axs_optim[i_muscle, 2].set_xlim(PARAMS_BOUNDS[muscle]["pulse_intensity"][0], PARAMS_BOUNDS[muscle]["pulse_intensity"][1])
                 i_param += 1
             self.fig_optim.tight_layout()
             time.sleep(0.1)

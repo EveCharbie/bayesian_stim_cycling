@@ -93,8 +93,8 @@ class BayesianOptimizationWorker:
         Create skopt search space: 4 parameters × 4 muscles = 16 dimensions.
         """
         for muscle in MUSCLE_KEYS:
-            for param_name in PARAMS_BOUNDS.keys():
-                low, high = PARAMS_BOUNDS[param_name]
+            for param_name in PARAMS_BOUNDS[muscle].keys():
+                low, high = PARAMS_BOUNDS[muscle][param_name]
                 dim_name = f"{param_name}_{muscle}"
                 self.space[muscle].append(Real(low, high, name=dim_name))
 
@@ -114,19 +114,11 @@ class BayesianOptimizationWorker:
                 num_cycles += 1
         return num_cycles
 
-    @staticmethod
-    def rotated_angle(angles: np.ndarray) -> np.ndarray:
-        """Shift the angle by -90 degrees and then wrap it to [0, 360] degrees."""
-        rotated_angles = np.zeros_like(angles)
-        for i_frame in range(angles.shape[0]):
-            shifted_angle = angles[i_frame] - np.pi/2  # Shift by -90 degrees
-            rotated_angles[i_frame] = shifted_angle % (2 * np.pi)  # Wrap to [0, 2π]
-        return rotated_angles
-
     def get_last_cycles_data(self) -> Dict[str, list[np.ndarray]]:
         """
         Extract the last nb_cycles from the data collector buffer.
         Each cycle is defined as angle going from 0° to 360°.
+        TODO: this piece of code is very similar to the one in pedal_worker, refactor it.
         """
         times_vector = self.worker_pedal.data_collector.data.timestamp
         angles = self.worker_pedal.data_collector.data.values[:, DataType.A18.value]
@@ -158,7 +150,7 @@ class BayesianOptimizationWorker:
                     start_idx = last_idx
                     end_idx = last_bound
                     last_cycles_data["times_vector"].insert(0, times_vector[start_idx:end_idx])
-                    last_cycles_data["angles"].insert(0, self.rotated_angle(angles[start_idx:end_idx]))
+                    last_cycles_data["angles"].insert(0, self.worker_pedal.rotated_angle(angles[start_idx:end_idx]))
                     last_cycles_data["left_power"].insert(0, left_power[start_idx:end_idx])
                     last_cycles_data["right_power"].insert(0, right_power[start_idx:end_idx])
                     last_cycles_data["total_power"].insert(0, total_power[start_idx:end_idx])
@@ -374,8 +366,8 @@ class BayesianOptimizationWorker:
         Save the BO results to a file.
         """
         results = {
-            "best_params": [self.best_result_dict[muscle].x for muscle in MUSCLE_KEYS],
-            "best_cost": [self.best_result_dict[muscle].fun for muscle in MUSCLE_KEYS],
+            "best_params": [self.best_result_dict[muscle] for muscle in MUSCLE_KEYS],
+            "best_cost": [self.best_result_dict[muscle] for muscle in MUSCLE_KEYS],
             "cost_list": self.cost_dict,
             "parameter_list": self.parameter_list,
         }
@@ -407,7 +399,7 @@ class BayesianOptimizationWorker:
             length_scale=1.0,
         )
         self.best_result_dict = bayesian_optimizer.optimize(
-            n_iterations=30,
+            n_iterations=20,
             nb_initialization_cycles=self.nb_initialization_cycles,
         )
 

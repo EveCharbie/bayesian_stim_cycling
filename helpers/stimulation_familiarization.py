@@ -8,8 +8,8 @@ from pysciencemode import Channel as Ch
 list_channels = [
     Ch(
         mode=Modes.SINGLE,
-        no_channel=1,
-        amplitude=71,  # Modify here the intensity MICK max = 71 in optim = 50
+        no_channel=4,
+        amplitude=58,  # Modify here the intensity MICK max = 71 in optim = 50
         pulse_width=300,  # 100, 500
         enable_low_frequency=True,
         name="Biceps",
