@@ -32,24 +32,28 @@ PARAMS_BOUNDS = {
         "onset_deg": [-30.0, 30.0],
         "offset_deg": [-30.0, 30.0],
         # "pulse_intensity": [30, 50],  # TODO: Change these values to really stim
+        # "pulse_intensity": [10, 20],
         "pulse_intensity": [10, 20],
     },
     "triceps_r": {
         "onset_deg": [-30.0, 30.0],
         "offset_deg": [-30.0, 30.0],
         # "pulse_intensity": [30, 60],  # TODO: Change these values to really stim
-        "pulse_intensity": [10, 30],
+        # "pulse_intensity": [10, 30],
+        "pulse_intensity": [10, 20],
     },
     "biceps_l": {
         "onset_deg": [-30.0, 30.0],
         "offset_deg": [-30.0, 30.0],
         # "pulse_intensity": [30, 67],  # TODO: Change these values to really stim
-        "pulse_intensity": [10, 35],
+        # "pulse_intensity": [10, 35],
+        "pulse_intensity": [10, 20],
     },
     "triceps_l": {
         "onset_deg": [-30.0, 30.0],
         "offset_deg": [-30.0, 30.0],
         # "pulse_intensity": [30, 58],  # TODO: Change these values to really stim
-        "pulse_intensity": [10, 28],
+        # "pulse_intensity": [10, 28],
+        "pulse_intensity": [10, 20],
     },
 }

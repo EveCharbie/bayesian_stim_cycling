@@ -72,7 +72,7 @@ class HandCycling2:
         # Create stimulator
         self.stimulator = St(port="COM3", show_log=False)
         self.stimulator.init_channel(
-            stimulation_interval=30,
+            stimulation_interval=20,
             list_channels=self.list_channels,
         )
 

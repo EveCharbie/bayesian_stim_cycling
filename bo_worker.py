@@ -161,39 +161,44 @@ class BayesianOptimizationWorker:
 
         return last_cycles_data
 
-    def get_cost_value(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
-        # Maximize power
-        left_power = np.hstack(last_cycles_data["left_power"])
-        right_power = np.hstack(last_cycles_data["right_power"])
-        total_left_power = -np.sum(left_power ** 2)
-        total_right_power = -np.sum(right_power ** 2)
-
-        # Minimize stimulation intensity
-        right_intensity = (
-                self.worker_stim.controller.intensity["biceps_r"] ** 2 +
-                self.worker_stim.controller.intensity["triceps_r"] ** 2
-        )
-        left_intensity = (
-                self.worker_stim.controller.intensity["biceps_l"] ** 2 +
-                self.worker_stim.controller.intensity["triceps_l"] ** 2
-        )
-
-        cost = total_left_power + total_right_power + 0.1 * (right_intensity + left_intensity)
-        return float(cost)
+    # def get_cost_value(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
+    #     # Maximize power
+    #     left_power = np.hstack(last_cycles_data["left_power"])
+    #     right_power = np.hstack(last_cycles_data["right_power"])
+    #     total_left_power = -np.sum(left_power ** 2)
+    #     total_right_power = -np.sum(right_power ** 2)
+    #
+    #     # Minimize stimulation intensity
+    #     right_intensity = (
+    #             self.worker_stim.controller.intensity["biceps_r"] ** 2 +
+    #             self.worker_stim.controller.intensity["triceps_r"] ** 2
+    #     )
+    #     left_intensity = (
+    #             self.worker_stim.controller.intensity["biceps_l"] ** 2 +
+    #             self.worker_stim.controller.intensity["triceps_l"] ** 2
+    #     )
+    #
+    #     cost = total_left_power + total_right_power + 0.1 * (right_intensity + left_intensity)
+    #     return float(cost)
 
     def _biceps_r_cost(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
         # Angles
         angles = np.hstack(last_cycles_data["angles"])
         if np.any(angles < 0) or np.any(angles > 2*np.pi):
             raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
+
+        lower_bound = np.radians(CUTOFF_ANGLES["right"][0])
+        upper_bound = np.radians(CUTOFF_ANGLES["right"][1])
         angles_in_range_indices = np.where(
             np.logical_and(
-                CUTOFF_ANGLES["right"][0] < angles,
-                angles < CUTOFF_ANGLES["right"][1],
+                lower_bound < angles,
+                angles < upper_bound,
             )
         )
+
         if len(angles_in_range_indices) > 0:
             angles_in_range_indices = angles_in_range_indices[0]
+            # print("biceps r", angles_in_range_indices.shape[0], " / ", angles.shape[0])
 
         # Maximize power
         right_power = np.hstack(last_cycles_data["right_power"])[angles_in_range_indices]
@@ -202,7 +207,8 @@ class BayesianOptimizationWorker:
         # Minimize stimulation intensity
         intensity = self.worker_stim.controller.intensity["biceps_r"] ** 2
 
-        cost = power + 0.1 * intensity
+        cost = power + 0.05 * intensity
+        # print("biceps r cost:", cost)
         return float(cost)
 
     def _triceps_r_cost(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
@@ -210,20 +216,21 @@ class BayesianOptimizationWorker:
         angles = np.hstack(last_cycles_data["angles"])
         if np.any(angles < 0) or np.any(angles > 2 * np.pi):
             raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
+
+        lower_bound = np.radians(CUTOFF_ANGLES["right"][1])
+        upper_bound = np.radians(CUTOFF_ANGLES["right"][0])
         angles_in_range_indices = np.where(
-            np.logical_or(
+            np.logical_not(
                 np.logical_and(
-                    0 < angles,
-                    angles < CUTOFF_ANGLES["right"][0],
-                ),
-                np.logical_and(
-                    CUTOFF_ANGLES["right"][1] < angles,
-                    angles < 2 * np.pi,
+                    angles < lower_bound,
+                    upper_bound < angles,
                 )
             )
         )
+
         if len(angles_in_range_indices) > 0:
             angles_in_range_indices = angles_in_range_indices[0]
+            # print("triceps r", angles_in_range_indices.shape[0], " / ", angles.shape[0])
 
         # Maximize power
         right_power = np.hstack(last_cycles_data["right_power"])[angles_in_range_indices]
@@ -232,7 +239,8 @@ class BayesianOptimizationWorker:
         # Minimize stimulation intensity
         intensity = self.worker_stim.controller.intensity["triceps_r"] ** 2
 
-        cost = power + 0.1 * intensity
+        cost = power + 0.05 * intensity
+        # print("triceps r cost:", cost)
         return float(cost)
 
     def _biceps_l_cost(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
@@ -240,20 +248,20 @@ class BayesianOptimizationWorker:
         angles = np.hstack(last_cycles_data["angles"])
         if np.any(angles < 0) or np.any(angles > 2 * np.pi):
             raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
+        lower_bound = np.radians(CUTOFF_ANGLES["left"][1])
+        upper_bound = np.radians(CUTOFF_ANGLES["left"][0])
         angles_in_range_indices = np.where(
-            np.logical_or(
+            np.logical_not(
                 np.logical_and(
-                    0 < angles,
-                    angles < CUTOFF_ANGLES["left"][0],
-                ),
-                np.logical_and(
-                    CUTOFF_ANGLES["left"][1] < angles,
-                    angles < 2*np.pi,
+                    angles < lower_bound,
+                    upper_bound < angles,
                 )
             )
         )
+
         if len(angles_in_range_indices) > 0:
             angles_in_range_indices = angles_in_range_indices[0]
+            # print("biceps l", angles_in_range_indices.shape[0], " / ", angles.shape[0])
 
         # Maximize power
         left_power = np.hstack(last_cycles_data["left_power"])[angles_in_range_indices]
@@ -262,7 +270,8 @@ class BayesianOptimizationWorker:
         # Minimize stimulation intensity
         intensity = self.worker_stim.controller.intensity["biceps_l"] ** 2
 
-        cost = power + 0.1 * intensity
+        cost = power + 0.05 * intensity
+        # print("biceps l cost:", cost)
         return float(cost)
 
     def _triceps_l_cost(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
@@ -270,14 +279,18 @@ class BayesianOptimizationWorker:
         angles = np.hstack(last_cycles_data["angles"])
         if np.any(angles < 0) or np.any(angles > 2 * np.pi):
             raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
+
+        lower_bound = np.radians(CUTOFF_ANGLES["left"][0])
+        upper_bound = np.radians(CUTOFF_ANGLES["left"][1])
         angles_in_range_indices = np.where(
             np.logical_and(
-                CUTOFF_ANGLES["left"][0] < angles,
-                angles < CUTOFF_ANGLES["left"][1],
+                lower_bound < angles,
+                angles < upper_bound,
             )
         )
         if len(angles_in_range_indices) > 0:
             angles_in_range_indices = angles_in_range_indices[0]
+            # print("triceps l", angles_in_range_indices.shape[0], " / ", angles.shape[0])
 
         # Maximize power
         left_power = np.hstack(last_cycles_data["left_power"])[angles_in_range_indices]
@@ -286,7 +299,8 @@ class BayesianOptimizationWorker:
         # Minimize stimulation intensity
         intensity = self.worker_stim.controller.intensity["triceps_l"] ** 2
 
-        cost = power + 0.1 * intensity
+        cost = power + 0.05 * intensity
+        # print("triceps l cost:", cost)
         return float(cost)
 
     # def _objective(self, x: List[float]) -> float:
@@ -399,9 +413,10 @@ class BayesianOptimizationWorker:
             length_scale=1.0,
         )
         self.best_result_dict = bayesian_optimizer.optimize(
-            n_iterations=20,
+            n_iterations=75,
             nb_initialization_cycles=self.nb_initialization_cycles,
         )
 
         self._logger.info(f"Optimization finished.")
         self.save_results()
+        self.worker_stim.stop()
