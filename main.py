@@ -21,14 +21,14 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
     # Shared stop flag
     stop_event = threading.Event()
 
-    # Create a thread to plot the results in real time
-    worker_plot = LivePlotter()
+    # # Create a thread to plot the results in real time
+    # worker_plot = LivePlotter()
 
     # Create pedal worker (third worker) that provides the crank angle
     worker_pedal = PedalWorker(
         stop_event=stop_event,
         data_collector=data_collector,
-        worker_plot=worker_plot,
+        # worker_plot=worker_plot,
     )
 
     # Create stimulation worker and connect callback.
@@ -38,21 +38,21 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
         worker_pedal=worker_pedal,
     )
 
-    # Create Bayesian optimization worker
-    worker_bo = BayesianOptimizationWorker(
-        stop_event=stop_event,
-        worker_pedal=worker_pedal,
-        worker_stim=worker_stim,
-        worker_plot=worker_plot,
-        nb_initialization_cycles=6,
-        really_change_stim_intensity=False,  # This is just a debugging flag to avoid having large stim during tests
-    )
+    # # Create Bayesian optimization worker
+    # worker_bo = BayesianOptimizationWorker(
+    #     stop_event=stop_event,
+    #     worker_pedal=worker_pedal,
+    #     worker_stim=worker_stim,
+    #     worker_plot=worker_plot,
+    #     nb_initialization_cycles=6,
+    #     really_change_stim_intensity=False,  # This is just a debugging flag to avoid having large stim during tests
+    # )
 
     threading.Thread(target=worker_pedal.run, daemon=True).start()
     threading.Thread(target=worker_stim.run, daemon=True).start()
     time.sleep(0.1)  # Give some time to start pedal and stim workers
-    threading.Thread(target=worker_bo.run, daemon=True).start()
-    threading.Thread(target=worker_plot.run, daemon=True).start()
+    # threading.Thread(target=worker_bo.run, daemon=True).start()
+    # threading.Thread(target=worker_plot.run, daemon=True).start()
 
     # Keep main thread alive
     try:

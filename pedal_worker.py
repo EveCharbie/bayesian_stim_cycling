@@ -24,7 +24,7 @@ class PedalWorker:
             self,
             stop_event: threading.Event,
             data_collector: DataCollector,
-            worker_plot: LivePlotter | None,
+            worker_plot: LivePlotter | None = None,
     ) -> None:
 
         # Flag to stop the thread

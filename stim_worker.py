@@ -32,10 +32,10 @@ class HandCycling2:
         # ----------------- Stimulator setup ----------------- #
         # Default intensity for each muscle (will be overridden by BO)
         self.intensity = {
-            "biceps_r": 1,
-            "triceps_r": 1,
-            "biceps_l": 1,
-            "triceps_l": 1,
+            "biceps_r": 10,
+            "triceps_r": 10,
+            "biceps_l": 10,
+            "triceps_l": 10,
         }
 
         # Pulse width for each muscle
@@ -149,7 +149,7 @@ class HandCycling2:
             return (onset <= self.angle) and (self.angle <= offset)
         elif onset > offset:
             # The angle wraps around 0
-            return not ((onset >= self.angle) and (self.angle >= offset))
+            return not ((offset <= self.angle) and (self.angle <= onset))
         else:
             raise RuntimeError("The onset and offset have the same value.")
 
@@ -166,7 +166,7 @@ class HandCycling2:
         for key in self.stimulation_range.keys():
             onset, offset = self.stimulation_range[key]
             is_stimulation_active = self.stimulation_state[key]
-            ch_idx = MUSCLE_KEYS.index(key) - 1
+            ch_idx = MUSCLE_KEYS.index(key)
             channel = self.list_channels[ch_idx]
 
             if self.angle > 360.0 or self.angle < 0:
@@ -174,13 +174,14 @@ class HandCycling2:
 
             # Range wraps around 360 (e.g., [220, 10])
             should_be_active = self.should_stimulation_be_active(onset, offset)
-            # print(
-            #     "onset: ", onset,
-            #     "offset: ", offset,
-            #     "angle", self.angle,
-            #     'is_active: ', is_stimulation_active,
-            #     'should_be_active: ', should_be_active,
-            # )
+            print(
+                "muscle: ", key,
+                "onset: ", onset,
+                "offset: ", offset,
+                "angle", self.angle,
+                'is_active: ', is_stimulation_active,
+                'should_be_active: ', should_be_active,
+            )
 
             if not is_stimulation_active and should_be_active:
                 # Start stimulation
