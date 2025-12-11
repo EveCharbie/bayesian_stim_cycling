@@ -1,6 +1,3 @@
-import sys
-import json
-import logging
 import pickle
 from datetime import datetime
 from Qt5.QtWidgets import (
@@ -33,6 +30,8 @@ from stim_worker import StimulationWorker
 from common_types import StimParameters
 from pedal_worker import PedalWorker
 
+from pedal_communication import DataType
+
 
 class MuscleSection(QGroupBox):
     """A section containing three sliders for a single muscle."""
@@ -60,58 +59,118 @@ class MuscleSection(QGroupBox):
         """Create a labeled slider with value display."""
         layout = QHBoxLayout()
 
+        # Scale factor for 0.5 precision (internal: 0-200, display: 0.0-100.0)
+        scale = 2
+
         # Label
         label = QLabel(f"{name}:")
         label.setFixedWidth(70)
 
-        # Slider
-        slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(min_val)
-        slider.setMaximum(max_val)
-        slider.setValue(default_val)
+        # Minus button
+        minus_btn = QPushButton("-0.5")
+        minus_btn.setFixedWidth(40)
 
-        # Value label
-        value_label = QLabel(str(default_val))
-        value_label.setFixedWidth(35)
+        # Slider (scaled for 0.5 precision)
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(int(min_val * scale))
+        slider.setMaximum(int(max_val * scale))
+        slider.setValue(int(default_val * scale))
+
+        # Plus button
+        plus_btn = QPushButton("+0.5")
+        plus_btn.setFixedWidth(40)
+
+        # Value label (shows decimal value)
+        value_label = QLabel(f"{default_val:.1f}")
+        value_label.setFixedWidth(40)
         value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         # Connect slider to update value label
-        slider.valueChanged.connect(lambda v: value_label.setText(str(v)))
+        slider.valueChanged.connect(
+            lambda v: value_label.setText(f"{v / scale:.1f}")
+        )
 
+        # Connect buttons
+        minus_btn.clicked.connect(lambda: slider.setValue(slider.value() - 1))
+        plus_btn.clicked.connect(lambda: slider.setValue(slider.value() + 1))
+
+        # Enable auto-repeat to allow holding the button
+        minus_btn.setAutoRepeat(True)
+        minus_btn.setAutoRepeatInterval(50)  # Repeat every 50ms while held
+        minus_btn.setAutoRepeatDelay(300)  # Start repeating after 300ms
+
+        plus_btn.setAutoRepeat(True)
+        plus_btn.setAutoRepeatInterval(50)
+        plus_btn.setAutoRepeatDelay(300)
+
+        # Assemble layout
         layout.addWidget(label)
+        layout.addWidget(minus_btn)
         layout.addWidget(slider)
+        layout.addWidget(plus_btn)
         layout.addWidget(value_label)
 
         return {
             'layout': layout,
             'slider': slider,
-            'value_label': value_label
+            'value_label': value_label,
+            'scale': scale,
+            'minus_btn': minus_btn,
+            'plus_btn': plus_btn
         }
 
     def get_values(self):
         """Return current slider values."""
+        scale = self.onset_slider['scale']
         return {
-            'onset': self.onset_slider['slider'].value(),
-            'offset': self.offset_slider['slider'].value(),
-            'intensity': self.intensity_slider['slider'].value()
+            'onset': self.onset_slider['slider'].value() / scale,
+            'offset': self.offset_slider['slider'].value() / scale,
+            'intensity': self.intensity_slider['slider'].value() / scale
         }
 
 
 class PlotCanvas(FigureCanvas):
     """Matplotlib canvas for the plot at the bottom."""
 
-    def __init__(self, parent=None):
+    def __init__(self, worker_pedal: PedalWorker, parent = None):
+        self.worker_pedal = worker_pedal
+
         self.fig = Figure(figsize=(10, 4), dpi=100)
         self.ax = self.fig.add_subplot(111)
         super().__init__(self.fig)
         self.setParent(parent)
 
         # Initial plot setup
-        self.ax.set_xlabel('Cycle')
-        self.ax.set_ylabel('Power')
+        self.ax.set_xlabel('Time [s]')
+        self.ax.set_ylabel('Power [W]')
         self.ax.grid(True, alpha=0.7)
         self.fig.tight_layout()
 
+    def setup_live_plot(self):
+        """Set up timer for live data updates."""
+        self.plot_timer = QTimer(self)
+        self.plot_timer.timeout.connect(self.update_live_plot)
+        self.plot_timer.start(10)  # 10ms = 100 Hz
+
+    def update_live_plot(self):
+        """Called every 10ms to update plot with new data."""
+        time_vector = self.worker_pedal.data_collector.data.timestamp
+        total_power = self.worker_pedal.data_collector.data.values[:, DataType.A38.value]
+
+        # Keep only the last 500 points
+        if len(time_vector) > 500:
+            time_vector = time_vector[-500:]
+            total_power = total_power[-500:]
+
+        self.ax.cla()
+        self.ax.plot(time_vector, total_power, color='blue')
+        self.ax.relim()
+        self.ax.autoscale_view()
+        self.ax.set_xlabel('Time [s]')
+        self.ax.set_ylabel('Power [W]')
+        self.ax.grid(True, alpha=0.7)
+        self.fig.tight_layout()
+        self.plot_canvas.draw()
 
 class Interface(QMainWindow):
     """Main application window."""
@@ -119,7 +178,7 @@ class Interface(QMainWindow):
     def __init__(self, worker_stim: StimulationWorker, worker_pedal: PedalWorker):
         super().__init__()
         self.worker_stim = worker_stim
-        self.worker_pedal = worker_pedal  # TODO: plot power !!
+        self.worker_pedal = worker_pedal
 
         # Store the parameters for each muscle
         self.parameters = {}
