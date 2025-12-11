@@ -1,0 +1,92 @@
+from __future__ import annotations
+
+import threading
+import time
+import logging
+import sys
+
+from PyQt5.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QVBoxLayout,
+    QHBoxLayout,
+    QCheckBox,
+    QPushButton,
+    QWidget,
+    QGroupBox,
+    QLabel,
+    QLineEdit,
+    QSpinBox,
+    QComboBox,
+    QFileDialog,
+    QMessageBox,
+    QStatusBar,
+    QGridLayout,
+    QRadioButton,
+)
+from PyQt5.QtCore import QTimer
+
+from stim_worker import StimulationWorker
+from pedal_worker import PedalWorker
+from interface import Interface
+
+from pedal_communication import PedalDevice, DataCollector
+
+
+def start_stimulation_optimization(data_collector: DataCollector) -> None:
+
+    # Shared stop flag
+    stop_event = threading.Event()
+
+    # Create pedal worker (worker) that provides the crank angle
+    worker_pedal = PedalWorker(
+        stop_event=stop_event,
+        data_collector=data_collector,
+        worker_plot=None,
+    )
+
+    # Create stimulation worker and connect callback.
+    # We also pass a reference to the pedal_worker so that it can use
+    # the angle coming from the pedal device instead of the NI-DAQ.
+    worker_stim = StimulationWorker(
+        worker_pedal=worker_pedal,
+    )
+
+    # Create a GUI so that the subject/experimentator can interact with the stimulation parameters
+    app = QApplication(sys.argv)
+    interface = Interface(worker_stim, worker_pedal)
+    interface.show()
+
+    threading.Thread(target=worker_pedal.run, daemon=True).start()
+    threading.Thread(target=worker_stim.run, daemon=True).start()
+    time.sleep(0.1)  # Give some time to start pedal and stim workers
+
+    # Start the GUI
+    sys.exit(app.exec_())
+
+    # Keep main thread alive
+    try:
+        while True:
+            time.sleep(5)
+    except KeyboardInterrupt:
+        worker_pedal.stop()
+        worker_stim.stop()
+
+
+if __name__ == "__main__":
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    # Connect to the device. If no real devices are available, one can run the script `mocked_device.py` to create a
+    # local TCP mock device that simulates a real pedal device.
+    device = PedalDevice()
+    while not device.connect():
+        time.sleep(0.1)
+
+    data_collector = DataCollector(device)
+    # data_collector.show_live([DataType.A0, DataType.A1, DataType.A2])
+
+    # Initialize the data collection from the pedals and start the optimization
+    data_collector.start()
+    start_stimulation_optimization(data_collector)
+    data_collector.stop()

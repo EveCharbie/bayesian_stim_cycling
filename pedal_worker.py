@@ -24,7 +24,7 @@ class PedalWorker:
             self,
             stop_event: threading.Event,
             data_collector: DataCollector,
-            worker_plot: LivePlotter,
+            worker_plot: LivePlotter | None,
     ) -> None:
 
         # Flag to stop the thread
@@ -111,7 +111,8 @@ class PedalWorker:
                             self._speed = speed
                             self._left_power = left_power
                             self._right_power = right_power
-                            self.worker_plot.add_pedal_data_points(angle - 90, left_power, right_power)
+                            if self.worker_plot is not None:
+                                self.worker_plot.add_pedal_data_points(angle - 90, left_power, right_power)
 
                     time.sleep(0.005)
 
