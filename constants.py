@@ -26,6 +26,6 @@ MUSCLE_KEYS = (
 PARAMS_BOUNDS = {
     "onset_deg": [-30.0, 30.0],
     "offset_deg": [-30.0, 30.0],
-    "pulse_intensity": [5, 15],  # TODO: Change these values to really stim
+    "pulse_intensity": [5, 10],  # TODO: Change these values to really stim
     # "pulse_intensity": [30, 50],
 }

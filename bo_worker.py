@@ -35,11 +35,11 @@ class BayesianOptimizationWorker:
         stop_event: threading.Event,
         worker_pedal: PedalWorker,
         worker_stim: StimulationWorker,
-        worker_plot: LivePlotter,
         nb_cycles_to_run: int = 5,
         nb_cycles_to_keep: int = 3,
         nb_initialization_cycles: int = 8,
         really_change_stim_intensity: bool = True,
+        worker_plot: LivePlotter = None,
     ):
         # self.job_queue = job_queue
         self.stop_event = stop_event
@@ -364,7 +364,8 @@ class BayesianOptimizationWorker:
             # Update results and live plotter
             self.cost_dict[muscle].append(cost)
         self.parameter_list.append(params)
-        self.worker_plot.update_data(self.cost_dict, self.parameter_list)
+        if self.worker_plot is not None:
+            self.worker_plot.update_data(self.cost_dict, self.parameter_list)
 
         return cost_list
 
