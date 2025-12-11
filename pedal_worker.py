@@ -67,11 +67,6 @@ class PedalWorker:
             time.sleep(0.1)
         self._logger.info("Pedal device connected.")
 
-    def get_latest_angle(self) -> float:
-        """Return the most recent pedal angle (in degrees)."""
-        with self._lock:
-            return self._angle
-
     def update_sensor(self, angle: float, speed: float) -> None:
         """
         Update the internal sensor state with a new real sample.
@@ -100,6 +95,11 @@ class PedalWorker:
         """Return (angle, speed, power) for the most recent sample."""
         with self._lock:
             return self._angle, self._speed, self._left_power, self._right_power
+
+    def get_latest_estimated_angle(self) -> float:
+        """Return the most recent estimated angle (in degrees)."""
+        with self._lock:
+            return self._angle_estimate
 
     @staticmethod
     def wait():

@@ -128,7 +128,7 @@ class HandCycling2:
         """
         should_activate_stim = False
         should_deactivate_stim = False
-        self.angle = self.worker_pedal.get_latest_angle()
+        self.angle = self.worker_pedal.get_latest_estimated_angle()
         for key in self.stimulation_range.keys():
             onset, offset = self.stimulation_range[key]
             is_stimulation_active = self.stimulation_state[key]
