@@ -2,3 +2,7 @@
 __pycache__/
 
 .idea/
+
+bo_results.pkl
+
+bo_results_5h05.pkl
