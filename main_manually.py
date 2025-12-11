@@ -5,26 +5,7 @@ import time
 import logging
 import sys
 
-from PyQt5.QtWidgets import (
-    QApplication,
-    QMainWindow,
-    QVBoxLayout,
-    QHBoxLayout,
-    QCheckBox,
-    QPushButton,
-    QWidget,
-    QGroupBox,
-    QLabel,
-    QLineEdit,
-    QSpinBox,
-    QComboBox,
-    QFileDialog,
-    QMessageBox,
-    QStatusBar,
-    QGridLayout,
-    QRadioButton,
-)
-from PyQt5.QtCore import QTimer
+from PyQt6.QtWidgets import QApplication
 
 from stim_worker import StimulationWorker
 from pedal_worker import PedalWorker
@@ -48,21 +29,21 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
     # Create stimulation worker and connect callback.
     # We also pass a reference to the pedal_worker so that it can use
     # the angle coming from the pedal device instead of the NI-DAQ.
-    worker_stim = StimulationWorker(
-        worker_pedal=worker_pedal,
-    )
+    # worker_stim = StimulationWorker(
+    #     worker_pedal=worker_pedal,
+    # )
 
     # Create a GUI so that the subject/experimentator can interact with the stimulation parameters
     app = QApplication(sys.argv)
-    interface = Interface(worker_stim, worker_pedal)
+    interface = Interface(worker_stim=None, worker_pedal=worker_pedal)
     interface.show()
 
     threading.Thread(target=worker_pedal.run, daemon=True).start()
-    threading.Thread(target=worker_stim.run, daemon=True).start()
+    # threading.Thread(target=worker_stim.run, daemon=True).start()
     time.sleep(0.1)  # Give some time to start pedal and stim workers
 
     # Start the GUI
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
     # Keep main thread alive
     try:
@@ -70,7 +51,7 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
             time.sleep(5)
     except KeyboardInterrupt:
         worker_pedal.stop()
-        worker_stim.stop()
+        # worker_stim.stop()
 
 
 if __name__ == "__main__":

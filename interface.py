@@ -1,31 +1,22 @@
 import pickle
 from datetime import datetime
-from Qt5.QtWidgets import (
-    QApplication,
+from PyQt6.QtWidgets import (
     QMainWindow,
     QVBoxLayout,
     QHBoxLayout,
-    QCheckBox,
     QPushButton,
     QWidget,
     QGroupBox,
     QLabel,
-    QLineEdit,
-    QSpinBox,
-    QComboBox,
-    QFileDialog,
-    QMessageBox,
-    QStatusBar,
-    QGridLayout,
-    QRadioButton,
     QSlider,
     QFrame,
 )
-from PyQt5.QtCore import Qt, QTimer
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from PyQt6.QtCore import Qt, QTimer
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+import numpy as np
 
-from constants import MUSCLE_KEYS, PARAMS_BOUNDS
+from constants import MUSCLE_KEYS, PARAMS_BOUNDS, STIMULATION_RANGE
 from stim_worker import StimulationWorker
 from common_types import StimParameters
 from pedal_worker import PedalWorker
@@ -36,8 +27,9 @@ from pedal_communication import DataType
 class MuscleSection(QGroupBox):
     """A section containing three sliders for a single muscle."""
 
-    def __init__(self, muscle_name, parent=None):
+    def __init__(self, muscle_key: str, muscle_name: str, parent=None):
         super().__init__(muscle_name, parent)
+        self.muscle_key = muscle_key
         self.muscle_name = muscle_name
         self.setup_ui()
 
@@ -45,9 +37,28 @@ class MuscleSection(QGroupBox):
         layout = QVBoxLayout()
 
         # Create sliders
-        self.onset_slider = self.create_slider("Onset", 0, 100, 0)
-        self.offset_slider = self.create_slider("Offset", 0, 100, 100)
-        self.intensity_slider = self.create_slider("Intensity", 0, 100, 50)
+        # STIMULATION_RANGE[self.muscle_key][0]
+        self.onset_slider = self.create_slider(
+            name="Onset",
+            min_val=PARAMS_BOUNDS[self.muscle_name]["onset_deg"][0],
+            max_val=PARAMS_BOUNDS[self.muscle_name]["onset_deg"][1],
+            default_val=0,
+            increments=0.5,
+        )
+        self.offset_slider = self.create_slider(
+            name="Offset",
+            min_val=PARAMS_BOUNDS[self.muscle_name]["offset_deg"][0],
+            max_val=PARAMS_BOUNDS[self.muscle_name]["offset_deg"][1],
+            default_val=0,
+            increments=0.5,
+        )
+        self.intensity_slider = self.create_slider(
+            name="Intensity",
+            min_val=PARAMS_BOUNDS[self.muscle_name]["pulse_intensity"][0],
+            max_val=PARAMS_BOUNDS[self.muscle_name]["pulse_intensity"][1],
+            default_val=(PARAMS_BOUNDS[self.muscle_name]["pulse_intensity"][0] + PARAMS_BOUNDS[self.muscle_name]["pulse_intensity"][1]) / 2,
+            increments=2,
+        )
 
         layout.addLayout(self.onset_slider['layout'])
         layout.addLayout(self.offset_slider['layout'])
@@ -55,35 +66,38 @@ class MuscleSection(QGroupBox):
 
         self.setLayout(layout)
 
-    def create_slider(self, name, min_val, max_val, default_val):
+    def create_slider(self, name, min_val, max_val, default_val, increments: float = 0.5):
         """Create a labeled slider with value display."""
         layout = QHBoxLayout()
 
         # Scale factor for 0.5 precision (internal: 0-200, display: 0.0-100.0)
-        scale = 2
+        scale = 1/increments
 
         # Label
         label = QLabel(f"{name}:")
         label.setFixedWidth(70)
 
         # Minus button
-        minus_btn = QPushButton("-0.5")
-        minus_btn.setFixedWidth(40)
+        minus_btn = QPushButton("-")
+        minus_btn.setFixedWidth(20)
+        minus_btn.setFixedHeight(20)
 
         # Slider (scaled for 0.5 precision)
-        slider = QSlider(Qt.Horizontal)
+        slider = QSlider(Qt.Orientation.Horizontal)
         slider.setMinimum(int(min_val * scale))
         slider.setMaximum(int(max_val * scale))
         slider.setValue(int(default_val * scale))
 
         # Plus button
-        plus_btn = QPushButton("+0.5")
-        plus_btn.setFixedWidth(40)
+        plus_btn = QPushButton("+")
+        plus_btn.setFixedWidth(20)
+        plus_btn.setFixedHeight(20)
 
         # Value label (shows decimal value)
         value_label = QLabel(f"{default_val:.1f}")
-        value_label.setFixedWidth(40)
-        value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        plus_btn.setFixedWidth(20)
+        plus_btn.setFixedHeight(20)
+        value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         # Connect slider to update value label
         slider.valueChanged.connect(
@@ -132,9 +146,14 @@ class MuscleSection(QGroupBox):
 class PlotCanvas(FigureCanvas):
     """Matplotlib canvas for the plot at the bottom."""
 
-    def __init__(self, worker_pedal: PedalWorker, parent = None):
+    def __init__(self, worker_pedal: PedalWorker, side: str, parent = None):
         self.worker_pedal = worker_pedal
+        self.side = side
 
+        # Data to plot
+        self.power_list = []
+
+        # Initialize figure
         self.fig = Figure(figsize=(10, 4), dpi=100)
         self.ax = self.fig.add_subplot(111)
         super().__init__(self.fig)
@@ -142,7 +161,7 @@ class PlotCanvas(FigureCanvas):
 
         # Initial plot setup
         self.ax.set_xlabel('Time [s]')
-        self.ax.set_ylabel('Power [W]')
+        self.ax.set_ylabel(f'Power {side} [W]')
         self.ax.grid(True, alpha=0.7)
         self.fig.tight_layout()
 
@@ -154,29 +173,34 @@ class PlotCanvas(FigureCanvas):
 
     def update_live_plot(self):
         """Called every 10ms to update plot with new data."""
-        time_vector = self.worker_pedal.data_collector.data.timestamp
-        total_power = self.worker_pedal.data_collector.data.values[:, DataType.A38.value]
+        last_cycle_data = self.worker_pedal.get_last_cycle_data()
+        if self.side == "Left":
+            power = np.nanmean(np.abs(last_cycle_data["left_power"]))
+        elif self.side == "Right":
+            power = np.nanmean(np.abs(last_cycle_data["right_power"]))
+        else:
+            raise ValueError(f"Unknown side: {self.side}")
+        self.power_list += [power]
 
-        # Keep only the last 500 points
-        if len(time_vector) > 500:
-            time_vector = time_vector[-500:]
-            total_power = total_power[-500:]
+        # Keep only the last 50 cycles
+        if len(self.power_list) > 50:
+            power_to_plot = self.power_list[-50:]
 
         self.ax.cla()
-        self.ax.plot(time_vector, total_power, color='blue')
+        self.ax.step(np.arange(self.power_to_plot.shape[0]), self.power_to_plot, color='blue')
         self.ax.relim()
         self.ax.autoscale_view()
-        self.ax.set_xlabel('Time [s]')
-        self.ax.set_ylabel('Power [W]')
+        self.ax.set_xlabel('Cycles')
+        self.ax.set_ylabel(f'Power {self.side} [W]')
         self.ax.grid(True, alpha=0.7)
         self.fig.tight_layout()
-        self.plot_canvas.draw()
+        self.draw()
 
 class Interface(QMainWindow):
     """Main application window."""
 
     def __init__(self, worker_stim: StimulationWorker, worker_pedal: PedalWorker):
-        super().__init__()
+        super().__init__(parent=None)
         self.worker_stim = worker_stim
         self.worker_pedal = worker_pedal
 
@@ -184,14 +208,14 @@ class Interface(QMainWindow):
         self.parameters = {}
         for muscle in MUSCLE_KEYS:
             self.parameters[muscle] = {
-                'onset': (PARAMS_BOUNDS["onset_deg"][0] + PARAMS_BOUNDS["onset_deg"][1]) / 2,
-                'offset': (PARAMS_BOUNDS["offset_deg"][0] + PARAMS_BOUNDS["offset_deg"][1]) / 2,
-                'intensity': (PARAMS_BOUNDS["pulse_intensity"][0] + PARAMS_BOUNDS["pulse_intensity"][1]) / 2
+                'onset': (PARAMS_BOUNDS[muscle]["onset_deg"][0] + PARAMS_BOUNDS[muscle]["onset_deg"][1]) / 2,
+                'offset': (PARAMS_BOUNDS[muscle]["offset_deg"][0] + PARAMS_BOUNDS[muscle]["offset_deg"][1]) / 2,
+                'intensity': (PARAMS_BOUNDS[muscle]["pulse_intensity"][0] + PARAMS_BOUNDS[muscle]["pulse_intensity"][1]) / 2
             }
 
         # create the main window
         self.setWindowTitle("Muscle Control GUI")
-        self.setMinimumSize(900, 700)
+        self.setMinimumSize(900, 800)
 
         # Timer variables (7 minutes 30 seconds = 450 seconds)
         self.remaining_time = 7 * 60 + 30  # 450 seconds
@@ -217,7 +241,7 @@ class Interface(QMainWindow):
             self.parameters["triceps_l"]["intensity"],
         )
         # Send the updated parameters to the stimulation worker
-        self.worker_stim.controller.apply_parameters(params)
+        # self.worker_stim.controller.apply_parameters(params)
 
     def setup_ui(self):
         """Set up the main UI layout."""
@@ -225,16 +249,16 @@ class Interface(QMainWindow):
         self.setCentralWidget(central_widget)
 
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setSpacing(15)
+        main_layout.setSpacing(5)
         main_layout.setContentsMargins(15, 15, 15, 15)
 
         # Timer display at the top
         self.timer_label = QLabel("07:30")
-        self.timer_label.setAlignment(Qt.AlignCenter)
+        self.timer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(self.timer_label)
 
         # Muscle sections container
-        muscles_layout = QHBoxLayout()
+        muscles_layout = QVBoxLayout()
         muscles_layout.setSpacing(10)
 
         # Create four muscle sections
@@ -247,8 +271,10 @@ class Interface(QMainWindow):
         }
 
         for key in muscle_names:
-            section = MuscleSection(muscle_names[key])
-            section.onset_slider["slider"].connect(lambda value: self.set_param_value(key, 'onset', value))
+            section = MuscleSection(key, muscle_names[key])
+            section.onset_slider["slider"].valueChanged.connect(
+                lambda value: self.set_param_value(key, 'onset', value / section.onset_slider['scale'])
+            )
             self.muscle_sections[muscle_names[key]] = section
             muscles_layout.addWidget(section)
 
@@ -256,20 +282,28 @@ class Interface(QMainWindow):
 
         # Separator line
         line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setFrameShadow(QFrame.Sunken)
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
         main_layout.addWidget(line)
 
-        # Plot at the bottom
-        self.plot_canvas = PlotCanvas(self)
-        self.plot_canvas.setMinimumHeight(250)
-        main_layout.addWidget(self.plot_canvas)
+        # Plot  sections container
+        plot_layout = QVBoxLayout()
+        plot_layout.setSpacing(5)
+        self.plot_canvas = {
+            "Left": PlotCanvas(self.worker_pedal, parent=None, side="left"),
+            "Right": PlotCanvas(self.worker_pedal, parent=None, side="Right"),
+        }
+        self.plot_canvas["Left"].setMinimumHeight(150)
+        self.plot_canvas["Right"].setMinimumHeight(150)
+        plot_layout.addWidget(self.plot_canvas["Left"])
+        plot_layout.addWidget(self.plot_canvas["Right"])
+        main_layout.addLayout(plot_layout)
 
         # Set stretch factors
         main_layout.setStretch(0, 0)  # Timer - no stretch
-        main_layout.setStretch(1, 1)  # Muscle sections - some stretch
+        main_layout.setStretch(1, 0)  # Muscle sections - no stretch (stays at top)
         main_layout.setStretch(2, 0)  # Separator - no stretch
-        main_layout.setStretch(3, 2)  # Plot - more stretch
+        main_layout.setStretch(3, 0)  # Plot - takes all remaining space
 
     def setup_timer(self):
         """Set up the countdown timer."""
@@ -284,6 +318,14 @@ class Interface(QMainWindow):
             minutes = self.remaining_time // 60
             seconds = self.remaining_time % 60
             self.timer_label.setText(f"{minutes:02d}:{seconds:02d}")
+            self.timer_label.setStyleSheet("""
+                QLabel {
+                    font-size: 36px;
+                    font-weight: bold;
+                    color: #ffffff;
+                    background-color: #144c3c;
+                }
+            """)
 
             # Change color when time is running low
             if self.remaining_time <= 60:
@@ -293,8 +335,6 @@ class Interface(QMainWindow):
                         font-weight: bold;
                         color: #ffffff;
                         background-color: #e74c3c;
-                        border-radius: 10px;
-                        padding: 10px;
                     }
                 """)
             elif self.remaining_time <= 120:
@@ -304,8 +344,6 @@ class Interface(QMainWindow):
                         font-weight: bold;
                         color: #f39c12;
                         background-color: #2c3e50;
-                        border-radius: 10px;
-                        padding: 10px;
                     }
                 """)
         else:
@@ -341,8 +379,6 @@ class Interface(QMainWindow):
                 font-weight: bold;
                 color: #ffffff;
                 background-color: #27ae60;
-                border-radius: 10px;
-                padding: 10px;
             }
         """)
 
