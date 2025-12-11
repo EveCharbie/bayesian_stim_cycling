@@ -147,7 +147,7 @@ class PedalWorker:
 
                     else:
                         self.calculate_angle()
-                    time.sleep(0.005)
+                    time.sleep(0.001)
 
         finally:
             self._logger.info("Stopping DataCollector...")

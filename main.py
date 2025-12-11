@@ -43,8 +43,8 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
         stop_event=stop_event,
         worker_pedal=worker_pedal,
         worker_stim=worker_stim,
-        nb_initialization_cycles=2,
-        really_change_stim_intensity=False,  # This is just a debugging flag to avoid having large stim during tests
+        nb_initialization_cycles=6,
+        really_change_stim_intensity=True,  # This is just a debugging flag to avoid having large stim during tests
         worker_plot=worker_plot,
     )
 

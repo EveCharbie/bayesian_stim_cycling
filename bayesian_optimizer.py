@@ -179,8 +179,7 @@ class BayesianOptimizer:
         Parameters
             nb_initialization_cycles: Number of initial random samples
         """
-        # intensity_increment = (PARAMS_BOUNDS["pulse_intensity"][1] - PARAMS_BOUNDS["pulse_intensity"][0]) / (nb_initialization_cycles - 1)
-        intensity_increment = (PARAMS_BOUNDS["pulse_intensity"][1] - PARAMS_BOUNDS["pulse_intensity"][0]) / (nb_initialization_cycles)
+        intensity_increment = (PARAMS_BOUNDS["pulse_intensity"][1] - PARAMS_BOUNDS["pulse_intensity"][0]) / (nb_initialization_cycles - 1)
 
         for i_init in range(nb_initialization_cycles):
             # Get the initial parameters to test
