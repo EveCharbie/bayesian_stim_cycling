@@ -109,40 +109,6 @@ class HandCycling2:
             if really_change_stim_intensity:
                 self.intensity[muscle] = intensity
 
-
-    # # ---------- called when pedal worker has a new real sample ----------
-    # def update_sensor(self, angle: float, speed: float) -> None:
-    #     """
-    #     Update the internal sensor state with a new real sample.
-    #     Angle and speed are expected in degrees and degrees/second.
-    #     """
-    #     now = time.perf_counter()
-    #     with self._angle_lock:
-    #         self.sensix_angle = angle
-    #         self.sensix_speed = speed
-    #
-    #         # reset integrator to measured state
-    #         self.previous_angle = angle
-    #         self.previous_speed = speed
-    #         self.previous_time = now
-    #         self.angle = angle
-    #
-    #         # print(angle, speed)
-
-    # def calculate_angle(self) -> float:
-    #     """
-    #     Integrate the last known speed to get a high-rate angle estimate.
-    #     """
-    #     now = time.perf_counter()
-    #     with self._angle_lock:
-    #         dt = now - self.previous_time
-    #         self.previous_time = now
-    #
-    #         self.previous_angle = (self.previous_angle + self.previous_speed * dt) % 360.0
-    #         self.angle = self.previous_angle
-    #         print("Calculated angle :", self.previous_angle)
-    #         return self.angle
-
     def should_stimulation_be_active(self, onset: float, offset: float) -> bool:
         if onset < offset:
             # The range does not wrap around 0

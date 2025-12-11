@@ -42,6 +42,12 @@ class PedalWorker:
         self._left_power: float = 0.0
         self._right_power: float = 0.0
 
+        # States for the estimation of the angle by integrating speed (higher frequency than 50 Hz)
+        self._previous_angle: float = 0
+        self._previous_speed: float = 0
+        self._previous_time: float = 0
+        self._angle_estimate: float = 0
+
         # Optional consumer callback: (angle, speed, power) -> None
         self._callback: Optional[Callable[[float, float, float], None]] = None
 
@@ -65,6 +71,30 @@ class PedalWorker:
         """Return the most recent pedal angle (in degrees)."""
         with self._lock:
             return self._angle
+
+    def update_sensor(self, angle: float, speed: float) -> None:
+        """
+        Update the internal sensor state with a new real sample.
+        Angle and speed are expected in degrees and degrees/s.
+        """
+        now = time.perf_counter()
+        with self._lock:
+            # reset integrator to measured state
+            self._previous_angle = angle
+            self._previous_speed = speed
+            self._previous_time = now
+            self._angle_estimate = angle
+        print("Measured angle :", self._previous_angle)
+
+    def calculate_angle(self) -> None:
+        """
+        Integrate the last known speed to get a high-rate angle estimate.
+        """
+        now = time.perf_counter()
+        with self._lock:
+            dt = now - self._previous_time
+            self._angle_estimate = (self._previous_angle + self._previous_speed * dt) % 360.0
+            print("Calculated angle :", self._angle_estimate)
 
     def get_latest_values(self) -> Tuple[float, float, float, float]:
         """Return (angle, speed, power) for the most recent sample."""
@@ -101,6 +131,7 @@ class PedalWorker:
 
                     changed = (angle != prev_angle) or (speed != prev_speed) or (left_power != self._left_power) or (right_power != self._right_power)
                     if changed:
+                        self.update_sensor(angle, speed)
                         prev_angle = angle
                         prev_speed = speed
                         # print("angle: ", angle)
@@ -114,6 +145,8 @@ class PedalWorker:
                             if self.worker_plot is not None:
                                 self.worker_plot.add_pedal_data_points(angle - 90, left_power, right_power)
 
+                    else:
+                        self.calculate_angle()
                     time.sleep(0.005)
 
         finally:
