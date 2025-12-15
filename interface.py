@@ -1,6 +1,5 @@
 import pickle
 from datetime import datetime
-from time import sleep
 from PyQt6.QtWidgets import (
     QMainWindow,
     QVBoxLayout,
@@ -11,8 +10,11 @@ from PyQt6.QtWidgets import (
     QLabel,
     QSlider,
     QFrame,
+    QStyleOptionSlider,
+    QStyle,
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QPainter, QColor, QPen, QPolygon
+from PyQt6.QtCore import Qt, QTimer, QRect, QPoint
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
@@ -21,6 +23,91 @@ from constants import PARAMS_BOUNDS, STIMULATION_RANGE
 from stim_worker import StimulationWorker
 from common_types import StimParameters, MuscleMode
 from pedal_worker import PedalWorker
+
+
+class MarkedSlider(QSlider):
+    """QSlider with a visual marker for the best value."""
+
+    def __init__(self, orientation):
+        super().__init__(orientation)
+        self.best_value = None
+
+    def set_best_value(self, value):
+        """Set the position of the best value marker."""
+        self.best_value = value
+        self.update()  # Trigger repaint
+
+    def clear_best_value(self):
+        """Remove the best value marker."""
+        self.best_value = None
+        self.update()
+
+    def paintEvent(self, event):
+        """Override paint to draw the marker."""
+        # First draw the normal slider
+        super().paintEvent(event)
+
+        # Then draw our custom marker if set
+        if self.best_value is None:
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Calculate position of the marker
+        slider_min = self.minimum()
+        slider_max = self.maximum()
+        slider_range = slider_max - slider_min
+
+        if slider_range == 0:
+            painter.end()
+            return
+
+        # Get slider geometry using proper QStyleOptionSlider
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+
+        groove_rect = self.style().subControlRect(
+            QStyle.ComplexControl.CC_Slider,
+            opt,
+            QStyle.SubControl.SC_SliderGroove,
+            self
+        )
+
+        # Calculate pixel position
+        value_ratio = (self.best_value - slider_min) / slider_range
+
+        if self.orientation() == Qt.Orientation.Horizontal:
+            x_pos = groove_rect.x() + int(groove_rect.width() * value_ratio)
+            y_top = groove_rect.y()
+            y_bottom = groove_rect.y() + groove_rect.height()
+
+            # Draw a vertical line at the best value position
+            pen = QPen(QColor(255, 215, 0), 3)  # Gold color
+            painter.setPen(pen)
+            painter.drawLine(x_pos, y_top - 5, x_pos, y_bottom + 5)
+
+            # Draw small triangles at top and bottom
+            painter.setBrush(QColor(255, 215, 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+
+            # Top triangle
+            points_top = QPolygon([
+                QPoint(x_pos, y_top - 5),
+                QPoint(x_pos - 4, y_top - 10),
+                QPoint(x_pos + 4, y_top - 10)
+            ])
+            painter.drawPolygon(points_top)
+
+            # Bottom triangle
+            points_bottom = QPolygon([
+                QPoint(x_pos, y_bottom + 5),
+                QPoint(x_pos - 4, y_bottom + 10),
+                QPoint(x_pos + 4, y_bottom + 10)
+            ])
+            painter.drawPolygon(points_bottom)
+
+        painter.end()
 
 
 class MuscleSection(QGroupBox):
@@ -82,7 +169,7 @@ class MuscleSection(QGroupBox):
         minus_btn.setFixedHeight(20)
 
         # Slider (scaled for 0.5 precision)
-        slider = QSlider(Qt.Orientation.Horizontal)
+        slider = MarkedSlider(Qt.Orientation.Horizontal)
         slider.setMinimum(int(min_val * scale))
         slider.setMaximum(int(max_val * scale))
         slider.setValue(int(default_val * scale))
@@ -140,6 +227,27 @@ class MuscleSection(QGroupBox):
             'plus_btn': plus_btn
         }
 
+    def set_best_values(self, onset, offset, intensity):
+        """Mark the best parameter values on all sliders."""
+        self.onset_slider['slider'].set_best_value(int(onset * self.onset_slider['scale']))
+        self.offset_slider['slider'].set_best_value(int(offset * self.offset_slider['scale']))
+        self.intensity_slider['slider'].set_best_value(int(intensity * self.intensity_slider['scale']))
+
+    def get_best_values(self):
+        """Return slider best values."""
+        scale = self.onset_slider['scale']
+        return {
+            'onset': self.onset_slider['slider'].best_value() / scale,
+            'offset': self.offset_slider['slider'].best_value() / scale,
+            'intensity': self.intensity_slider['slider'].best_value() / scale
+        }
+
+    def clear_best_values(self):
+        """Remove best value markers from all sliders."""
+        self.onset_slider['slider'].clear_best_value()
+        self.offset_slider['slider'].clear_best_value()
+        self.intensity_slider['slider'].clear_best_value()
+
     def get_values(self):
         """Return current slider values."""
         scale = self.onset_slider['scale']
@@ -153,10 +261,12 @@ class MuscleSection(QGroupBox):
 class PlotCanvas(FigureCanvas):
     """Matplotlib canvas for the plot at the bottom."""
 
-    def __init__(self, worker_pedal: PedalWorker, side: str, parent = None):
+    def __init__(self, worker_pedal: PedalWorker, side: str, muscle_sections: dict, parent = None):
 
         self.worker_pedal = worker_pedal
         self.side = side
+        # TODO: muscle_sections should be independent from the plot update, but the power computation should e placed somewhere else for that.
+        self.muscle_sections = muscle_sections
 
         # Data to plot
         self.power_list = []
@@ -220,6 +330,24 @@ class PlotCanvas(FigureCanvas):
             self.fig.tight_layout()
             self.draw()
 
+
+            # Update the marker on the slide bar if a new max power is reached
+            if power >= max(self.power_list):
+                self.update_best_markers()
+
+    def update_best_markers(self):
+        """Update the best value markers on relevant muscle sections."""
+        for muscle_name, section in self.muscle_sections.items():
+            # Only update markers for muscles on the same side
+            if (self.side == "Left" and muscle_name.endswith("Left")) or \
+               (self.side == "Right" and muscle_name.endswith("Right")):
+                values = section.get_values()
+                section.set_best_values(
+                    onset=values['onset'],
+                    offset=values['offset'],
+                    intensity=values['intensity']
+                )
+
 class Interface(QMainWindow):
     """Main application window."""
 
@@ -227,11 +355,13 @@ class Interface(QMainWindow):
             self,
             worker_stim: StimulationWorker,
             worker_pedal: PedalWorker,
-            muscle_mode: MuscleMode.BICEPS_TRICEPS | MuscleMode.DELTOIDS
+            muscle_mode: MuscleMode.BOTH
     ):
         super().__init__(parent=None)
         self.worker_stim = worker_stim
         self.worker_pedal = worker_pedal
+        if not isinstance(muscle_mode, MuscleMode.BOTH):
+            raise ValueError("muscle_mode must be MuscleMode.BOTH for this interface.")
         self.muscle_mode = muscle_mode
 
         # Store the parameters for each muscle
@@ -282,6 +412,7 @@ class Interface(QMainWindow):
             self.parameters["delt_ant_l"]["offset"],
             self.parameters["delt_ant_l"]["intensity"],
         )
+
         # Send the updated parameters to the stimulation worker
         # self.worker_stim.controller.apply_parameters(params)
 
@@ -355,8 +486,8 @@ class Interface(QMainWindow):
         plot_layout = QVBoxLayout()
         plot_layout.setSpacing(5)
         self.plot_canvas = {
-            "Left": PlotCanvas(self.worker_pedal, parent=self, side="Left"),
-            "Right": PlotCanvas(self.worker_pedal, parent=self, side="Right"),
+            "Left": PlotCanvas(self.worker_pedal, parent=self, side="Left", muscle_sections=self.muscle_sections),
+            "Right": PlotCanvas(self.worker_pedal, parent=self, side="Right", muscle_sections=self.muscle_sections),
         }
         self.plot_canvas["Left"].setMinimumHeight(150)
         self.plot_canvas["Right"].setMinimumHeight(150)
@@ -420,11 +551,13 @@ class Interface(QMainWindow):
         """Save all slider values to a pickle file."""
         data = {
             'timestamp': datetime.now().isoformat(),
-            'muscles': {}
+            'muscles': {},
+            'muscles_best_slider': {}
         }
 
         for name, section in self.muscle_sections.items():
             data['muscles'][name] = section.get_values()
+            data['muscles_best_slider'][name] = section.get_values()
 
         filename = f"muscle_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
 

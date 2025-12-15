@@ -17,7 +17,7 @@ from pedal_communication import PedalDevice, DataCollector
 
 def start_stimulation_optimization(data_collector: DataCollector) -> None:
 
-    muscle_mode = MuscleMode.BICEPS_TRICEPS()
+    muscle_mode = MuscleMode.BOTH()  # This cannot be changed here !
 
     # Shared stop flag
     stop_event = threading.Event()
