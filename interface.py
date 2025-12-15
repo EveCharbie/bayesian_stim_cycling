@@ -235,11 +235,10 @@ class MuscleSection(QGroupBox):
 
     def get_best_values(self):
         """Return slider best values."""
-        scale = self.onset_slider['scale']
         return {
-            'onset': self.onset_slider['slider'].best_value() / scale,
-            'offset': self.offset_slider['slider'].best_value() / scale,
-            'intensity': self.intensity_slider['slider'].best_value() / scale
+            'onset': self.onset_slider['slider'].best_value / self.onset_slider['scale'],
+            'offset': self.offset_slider['slider'].best_value / self.offset_slider['scale'],
+            'intensity': self.intensity_slider['slider'].best_value / self.intensity_slider['scale']
         }
 
     def clear_best_values(self):
@@ -250,11 +249,10 @@ class MuscleSection(QGroupBox):
 
     def get_values(self):
         """Return current slider values."""
-        scale = self.onset_slider['scale']
         return {
-            'onset': self.onset_slider['slider'].value() / scale,
-            'offset': self.offset_slider['slider'].value() / scale,
-            'intensity': self.intensity_slider['slider'].value() / scale
+            'onset': self.onset_slider['slider'].value() / self.onset_slider['scale'],
+            'offset': self.offset_slider['slider'].value() / self.offset_slider['scale'],
+            'intensity': self.intensity_slider['slider'].value() / self.intensity_slider['scale']
         }
 
 
