@@ -116,11 +116,12 @@ class PedalWorker:
         Extract the last nb_cycles from the data collector buffer.
         Each cycle is defined as angle going from 0° to 360°.
         """
-        times_vector = self.data_collector.data.timestamp
-        angles = self.data_collector.data.values[:, DataType.A18.value]
-        left_power = self.data_collector.data.values[:, DataType.A36.value]
-        right_power = self.data_collector.data.values[:, DataType.A37.value]
-        total_power = self.data_collector.data.values[:, DataType.A38.value]
+        with self._lock:
+            times_vector = self.data_collector.data.timestamp.copy()
+            angles = self.data_collector.data.values[:, DataType.A18.value].copy()
+            left_power = self.data_collector.data.values[:, DataType.A36.value].copy()
+            right_power = self.data_collector.data.values[:, DataType.A37.value].copy()
+            total_power = self.data_collector.data.values[:, DataType.A38.value].copy()
 
         last_cycle_data = {
             "times_vector": [],

@@ -99,12 +99,12 @@ class BayesianOptimizer:
         self.muscle_mode = muscle_mode
         self.n_params = 3
         self.xi = xi
-        self.gp = {key: GaussianProcess(length_scale=length_scale) for key in self.muscle_mode.muscle_keys}
+        self.gp = {muscle: GaussianProcess(length_scale=length_scale) for muscle in self.muscle_mode.muscle_keys}
 
-        self.input_observed = {key: np.empty((0, self.n_params)) for key in self.muscle_mode.muscle_keys}
-        self.output_observed = {key: np.empty((0, 1)) for key in self.muscle_mode.muscle_keys}
-        self.best_x = {key: np.empty((0, 1)) for key in self.muscle_mode.muscle_keys}
-        self.best_y = {key: np.inf for key in self.muscle_mode.muscle_keys}
+        self.input_observed = {muscle: np.empty((0, self.n_params)) for muscle in self.muscle_mode.muscle_keys}
+        self.output_observed = {muscle: np.empty((0, 1)) for muscle in self.muscle_mode.muscle_keys}
+        self.best_x = {muscle: np.empty((0, 1)) for muscle in self.muscle_mode.muscle_keys}
+        self.best_y = {muscle: np.inf for muscle in self.muscle_mode.muscle_keys}
 
         # Logging
         logging.basicConfig(
@@ -173,21 +173,21 @@ class BayesianOptimizer:
             next_x += best_x.tolist()
         return next_x
 
-    def initialize(self, nb_initialization_cycles: int):
+    def initialize(self, nb_init_intensity_increasing_steps: int):
         """
         Initialize predefined samples with random onset and offset, but with incremental intensity so that the
         participant slowly gets habituated to the stimulation.
 
         Parameters
-            nb_initialization_cycles: Number of initial random samples
+            nb_init_intensity_increasing_steps: Number of initial random samples
         """
-        for i_init in range(nb_initialization_cycles):
+        for i_init in range(nb_init_intensity_increasing_steps):
             # Get the initial parameters to test
             x = []
             x_all = []
             for muscle in self.muscle_mode.muscle_keys:
                 intensity_increment = (PARAMS_BOUNDS[muscle]["pulse_intensity"][1] - PARAMS_BOUNDS[muscle]["pulse_intensity"][0]) / (
-                            nb_initialization_cycles - 1)
+                            nb_init_intensity_increasing_steps - 1)
 
                 # Random angles
                 onset_this_time = np.random.uniform(
@@ -219,17 +219,17 @@ class BayesianOptimizer:
         for muscle in self.muscle_mode.muscle_keys:
             self.gp[muscle].fit(self.input_observed[muscle], self.output_observed[muscle])
 
-    def optimize(self, n_iterations: int = 20, nb_initialization_cycles: int = 8) -> dict[str, OptimizationResults]:
+    def optimize(self, n_iterations: int = 20, nb_init_intensity_increasing_steps: int = 8) -> dict[str, OptimizationResults]:
         """
         Run the Bayesian Optimization loop.
 
         Parameters:
             n_iterations: Number of optimization iterations
-            nb_initialization_cycles: Number of initial incremental steps to evaluate before starting the optimization.
+            nb_init_intensity_increasing_steps: Number of initial incremental steps to evaluate before starting the optimization.
         """
         # Initialize with random samples
         self._logger.info(f"Initializing with random samples...")
-        self.initialize(nb_initialization_cycles)
+        self.initialize(nb_init_intensity_increasing_steps)
 
         # Main optimization loop
         for i_iter in range(n_iterations):

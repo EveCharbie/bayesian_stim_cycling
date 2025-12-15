@@ -29,7 +29,7 @@ class LivePlotter:
         self._lock = threading.Lock()
 
         # Data to plot
-        self.costs: dict[str, list[float]] = {key: [] for key in self.muscle_mode.muscle_keys}
+        self.costs: dict[str, list[float]] = {muscle: [] for muscle in self.muscle_mode.muscle_keys}
         self.parameters: list[StimParameters] = []
         self.angles = []
         self.left_powers = []

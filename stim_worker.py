@@ -68,7 +68,7 @@ class HandCycling2:
         }
 
         # Default stimulation ranges in degrees (will be overridden by BO)
-        self.stimulation_range = {key: STIMULATION_RANGE[key] for key in STIMULATION_RANGE.keys()}
+        self.stimulation_range = {muscle: STIMULATION_RANGE[muscle] for muscle in STIMULATION_RANGE.keys()}
 
         self.list_channels = [
             Ch(

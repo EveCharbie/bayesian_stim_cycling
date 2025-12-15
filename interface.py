@@ -1,5 +1,6 @@
 import pickle
 from datetime import datetime
+from time import sleep
 from PyQt6.QtWidgets import (
     QMainWindow,
     QVBoxLayout,
@@ -21,8 +22,6 @@ from stim_worker import StimulationWorker
 from common_types import StimParameters, MuscleMode
 from pedal_worker import PedalWorker
 
-from pedal_communication import DataType
-
 
 class MuscleSection(QGroupBox):
     """A section containing three sliders for a single muscle."""
@@ -40,23 +39,23 @@ class MuscleSection(QGroupBox):
         # STIMULATION_RANGE[self.muscle_key][0]
         self.onset_slider = self.create_slider(
             name="Onset",
-            min_val=PARAMS_BOUNDS[self.muscle_name]["onset_deg"][0],
-            max_val=PARAMS_BOUNDS[self.muscle_name]["onset_deg"][1],
+            min_val=PARAMS_BOUNDS[self.muscle_key]["onset_deg"][0],
+            max_val=PARAMS_BOUNDS[self.muscle_key]["onset_deg"][1],
             default_val=0,
             increments=0.5,
         )
         self.offset_slider = self.create_slider(
             name="Offset",
-            min_val=PARAMS_BOUNDS[self.muscle_name]["offset_deg"][0],
-            max_val=PARAMS_BOUNDS[self.muscle_name]["offset_deg"][1],
+            min_val=PARAMS_BOUNDS[self.muscle_key]["offset_deg"][0],
+            max_val=PARAMS_BOUNDS[self.muscle_key]["offset_deg"][1],
             default_val=0,
             increments=0.5,
         )
         self.intensity_slider = self.create_slider(
             name="Intensity",
-            min_val=PARAMS_BOUNDS[self.muscle_name]["pulse_intensity"][0],
-            max_val=PARAMS_BOUNDS[self.muscle_name]["pulse_intensity"][1],
-            default_val=(PARAMS_BOUNDS[self.muscle_name]["pulse_intensity"][0] + PARAMS_BOUNDS[self.muscle_name]["pulse_intensity"][1]) / 2,
+            min_val=PARAMS_BOUNDS[self.muscle_key]["pulse_intensity"][0],
+            max_val=PARAMS_BOUNDS[self.muscle_key]["pulse_intensity"][1],
+            default_val=(PARAMS_BOUNDS[self.muscle_key]["pulse_intensity"][0] + PARAMS_BOUNDS[self.muscle_key]["pulse_intensity"][1]) / 2,
             increments=2,
         )
 
@@ -105,8 +104,16 @@ class MuscleSection(QGroupBox):
         )
 
         # Connect buttons
-        minus_btn.clicked.connect(lambda: slider.setValue(slider.value() - 1))
-        plus_btn.clicked.connect(lambda: slider.setValue(slider.value() + 1))
+        def increment_slider():
+            current = slider.value()
+            slider.setValue(current + 1)
+
+        def decrement_slider():
+            current = slider.value()
+            slider.setValue(current - 1)
+
+        minus_btn.clicked.connect(decrement_slider)
+        plus_btn.clicked.connect(increment_slider)
 
         # Enable auto-repeat to allow holding the button
         minus_btn.setAutoRepeat(True)
@@ -147,6 +154,7 @@ class PlotCanvas(FigureCanvas):
     """Matplotlib canvas for the plot at the bottom."""
 
     def __init__(self, worker_pedal: PedalWorker, side: str, parent = None):
+
         self.worker_pedal = worker_pedal
         self.side = side
 
@@ -160,41 +168,57 @@ class PlotCanvas(FigureCanvas):
         self.setParent(parent)
 
         # Initial plot setup
-        self.ax.set_xlabel('Time [s]')
+        self.ax.set_xlabel('Cycles')
         self.ax.set_ylabel(f'Power {side} [W]')
         self.ax.grid(True, alpha=0.7)
         self.fig.tight_layout()
+        self.setup_live_plot()
 
     def setup_live_plot(self):
         """Set up timer for live data updates."""
+
         self.plot_timer = QTimer(self)
         self.plot_timer.timeout.connect(self.update_live_plot)
-        self.plot_timer.start(10)  # 10ms = 100 Hz
+        self.plot_timer.start(50)  # 50ms = 20 Hz
 
     def update_live_plot(self):
         """Called every 10ms to update plot with new data."""
         last_cycle_data = self.worker_pedal.get_last_cycle_data()
-        if self.side == "Left":
-            power = np.nanmean(np.abs(last_cycle_data["left_power"]))
-        elif self.side == "Right":
-            power = np.nanmean(np.abs(last_cycle_data["right_power"]))
+        nb_cycles = len(last_cycle_data["times_vector"])
+
+        if nb_cycles == 0:
+            return
         else:
-            raise ValueError(f"Unknown side: {self.side}")
-        self.power_list += [power]
+            if self.side == "Left":
+                power = np.nanmean(np.abs(last_cycle_data["left_power"][-1]))
+            elif self.side == "Right":
+                power = np.nanmean(np.abs(last_cycle_data["right_power"][-1]))
+            else:
+                raise ValueError(f"Unknown side: {self.side}")
 
-        # Keep only the last 50 cycles
-        if len(self.power_list) > 50:
-            power_to_plot = self.power_list[-50:]
+            if len(self.power_list) == 0:
+                self.power_list += [power]
+            elif power == self.power_list[-1]:
+                return
+            else:
+                self.power_list += [power]
 
-        self.ax.cla()
-        self.ax.step(np.arange(self.power_to_plot.shape[0]), self.power_to_plot, color='blue')
-        self.ax.relim()
-        self.ax.autoscale_view()
-        self.ax.set_xlabel('Cycles')
-        self.ax.set_ylabel(f'Power {self.side} [W]')
-        self.ax.grid(True, alpha=0.7)
-        self.fig.tight_layout()
-        self.draw()
+            # Keep only the last 50 cycles
+            nb_cycles_to_show = 50
+            if len(self.power_list) > nb_cycles_to_show:
+                power_to_plot = self.power_list[-nb_cycles_to_show:]
+            else:
+                power_to_plot = self.power_list
+
+            self.ax.cla()
+            self.ax.step(np.arange(len(power_to_plot)), power_to_plot, color='blue')
+            self.ax.relim()
+            self.ax.autoscale_view()
+            self.ax.set_xlabel('Cycles')
+            self.ax.set_ylabel(f'Power {self.side} [W]')
+            self.ax.grid(True, alpha=0.7)
+            self.fig.tight_layout()
+            self.draw()
 
 class Interface(QMainWindow):
     """Main application window."""
@@ -276,8 +300,13 @@ class Interface(QMainWindow):
         main_layout.addWidget(self.timer_label)
 
         # Muscle sections container
-        muscles_layout = QVBoxLayout()
-        muscles_layout.setSpacing(10)
+        muscles_layout = QHBoxLayout()
+        left_sub_muscles_layout = QVBoxLayout()
+        left_sub_muscles_layout.setSpacing(10)
+        right_sub_muscles_layout = QVBoxLayout()
+        right_sub_muscles_layout.setSpacing(10)
+        muscles_layout.addLayout(left_sub_muscles_layout)
+        muscles_layout.addLayout(right_sub_muscles_layout)
 
         # Create four muscle sections
         self.muscle_sections = {}
@@ -292,13 +321,27 @@ class Interface(QMainWindow):
             "delt_ant_l": "Anterior Deltoid Left",
         }
 
-        for key in muscle_names:
-            section = MuscleSection(key, muscle_names[key])
+        for muscle in muscle_names:
+            section = MuscleSection(muscle, muscle_names[muscle])
+
             section.onset_slider["slider"].valueChanged.connect(
-                lambda value: self.set_param_value(key, 'onset', value / section.onset_slider['scale'])
+                lambda value, m=muscle, s=section: self.set_param_value(m, 'onset', value / s.onset_slider['scale'])
             )
-            self.muscle_sections[muscle_names[key]] = section
-            muscles_layout.addWidget(section)
+            section.offset_slider["slider"].valueChanged.connect(
+                lambda value, m=muscle, s=section: self.set_param_value(m, 'offset', value / s.offset_slider['scale'])
+            )
+            section.intensity_slider["slider"].valueChanged.connect(
+                lambda value, m=muscle, s=section: self.set_param_value(m, 'intensity',
+                                                                        value / s.intensity_slider['scale'])
+            )
+
+            self.muscle_sections[muscle_names[muscle]] = section
+            if muscle.endswith("_l"):
+                left_sub_muscles_layout.addWidget(section)
+            elif muscle.endswith("_r"):
+                right_sub_muscles_layout.addWidget(section)
+            else:
+                raise ValueError(f"The muscle key {muscle} should have ended with _l or _r.")
 
         main_layout.addLayout(muscles_layout)
 
@@ -312,8 +355,8 @@ class Interface(QMainWindow):
         plot_layout = QVBoxLayout()
         plot_layout.setSpacing(5)
         self.plot_canvas = {
-            "Left": PlotCanvas(self.worker_pedal, parent=None, side="left"),
-            "Right": PlotCanvas(self.worker_pedal, parent=None, side="Right"),
+            "Left": PlotCanvas(self.worker_pedal, parent=self, side="Left"),
+            "Right": PlotCanvas(self.worker_pedal, parent=self, side="Right"),
         }
         self.plot_canvas["Left"].setMinimumHeight(150)
         self.plot_canvas["Right"].setMinimumHeight(150)

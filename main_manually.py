@@ -10,11 +10,14 @@ from PyQt6.QtWidgets import QApplication
 from stim_worker import StimulationWorker
 from pedal_worker import PedalWorker
 from interface import Interface
+from common_types import MuscleMode
 
 from pedal_communication import PedalDevice, DataCollector
 
 
 def start_stimulation_optimization(data_collector: DataCollector) -> None:
+
+    muscle_mode = MuscleMode.BICEPS_TRICEPS()
 
     # Shared stop flag
     stop_event = threading.Event()
@@ -29,17 +32,18 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
     # Create stimulation worker and connect callback.
     # We also pass a reference to the pedal_worker so that it can use
     # the angle coming from the pedal device instead of the NI-DAQ.
-    # worker_stim = StimulationWorker(
-    #     worker_pedal=worker_pedal,
-    # )
+    worker_stim = StimulationWorker(
+        worker_pedal=worker_pedal,
+        muscle_mode=muscle_mode,
+    )
 
     # Create a GUI so that the subject/experimentator can interact with the stimulation parameters
     app = QApplication(sys.argv)
-    interface = Interface(worker_stim=None, worker_pedal=worker_pedal)
+    interface = Interface(worker_stim=worker_stim, worker_pedal=worker_pedal, muscle_mode=muscle_mode)
     interface.show()
 
     threading.Thread(target=worker_pedal.run, daemon=True).start()
-    # threading.Thread(target=worker_stim.run, daemon=True).start()
+    threading.Thread(target=worker_stim.run, daemon=True).start()
     time.sleep(0.1)  # Give some time to start pedal and stim workers
 
     # Start the GUI

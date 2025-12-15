@@ -21,48 +21,48 @@ PARAMS_BOUNDS = {
         "onset_deg": [-30.0, 30.0],
         "offset_deg": [-30.0, 30.0],
         # "pulse_intensity": [30, 50],  # TODO: Change these values to really stim
-        "pulse_intensity": [10, 20],
+        "pulse_intensity": [5, 15],
     },
     "triceps_r": {
         "onset_deg": [-30.0, 30.0],
         "offset_deg": [-30.0, 30.0],
         # "pulse_intensity": [30, 60],  # TODO: Change these values to really stim
-        "pulse_intensity": [10, 20],
+        "pulse_intensity": [5, 15],
     },
     "biceps_l": {
         "onset_deg": [-30.0, 30.0],
         "offset_deg": [-30.0, 30.0],
         # "pulse_intensity": [30, 67],  # TODO: Change these values to really stim
-        "pulse_intensity": [10, 20],
+        "pulse_intensity": [5, 15],
     },
     "triceps_l": {
         "onset_deg": [-30.0, 30.0],
         "offset_deg": [-30.0, 30.0],
         # "pulse_intensity": [30, 58],  # TODO: Change these values to really stim
-        "pulse_intensity": [10, 20],
+        "pulse_intensity": [5, 15],
     },
     "delt_post_r": {
         "onset_deg": [-30.0, 30.0],
         "offset_deg": [-30.0, 30.0],
         # "pulse_intensity": [30, 50],  # TODO: Change these values to really stim
-        "pulse_intensity": [10, 20],
+        "pulse_intensity": [5, 15],
     },
     "delt_ant_r": {
         "onset_deg": [-30.0, 30.0],
         "offset_deg": [-30.0, 30.0],
         # "pulse_intensity": [30, 60],  # TODO: Change these values to really stim
-        "pulse_intensity": [10, 20],
+        "pulse_intensity": [5, 15],
     },
     "delt_post_l": {
         "onset_deg": [-30.0, 30.0],
         "offset_deg": [-30.0, 30.0],
         # "pulse_intensity": [30, 67],  # TODO: Change these values to really stim
-        "pulse_intensity": [10, 20],
+        "pulse_intensity": [5, 15],
     },
     "delt_ant_l": {
         "onset_deg": [-30.0, 30.0],
         "offset_deg": [-30.0, 30.0],
         # "pulse_intensity": [30, 58],  # TODO: Change these values to really stim
-        "pulse_intensity": [10, 20],
+        "pulse_intensity": [5, 15],
     },
 }

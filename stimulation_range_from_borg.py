@@ -191,16 +191,16 @@ class Interface(QMainWindow):
             "delt_ant_l": "Anterior Deltoid Left",
         }
 
-        for key in muscle_names:
-            section = MuscleSection(key, muscle_names[key])
+        for muscle in muscle_names:
+            section = MuscleSection(muscle, muscle_names[muscle])
 
             # Fix lambda capture by using default argument
             section.intensity_slider["slider"].valueChanged.connect(
-                lambda value, k=key, s=section: self.set_param_value(k, 'intensity',
+                lambda value, k=muscle, s=section: self.set_param_value(k, 'intensity',
                                                                      value / s.intensity_slider['scale'])
             )
 
-            self.muscle_sections[muscle_names[key]] = section
+            self.muscle_sections[muscle_names[muscle]] = section
             muscles_layout.addWidget(section)
 
         main_layout.addLayout(muscles_layout)

@@ -48,7 +48,8 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
         worker_pedal=worker_pedal,
         worker_stim=worker_stim,
         muscle_mode=muscle_mode,
-        nb_initialization_cycles=5,
+        nb_init_intensity_increasing_steps=5,
+        n_iterations=50,
         really_change_stim_intensity=True,  # This is just a debugging flag to avoid having large stim during tests
         # worker_plot=worker_plot,
     )

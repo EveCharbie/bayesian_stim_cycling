@@ -38,7 +38,8 @@ class BayesianOptimizationWorker:
         muscle_mode: MuscleMode.BICEPS_TRICEPS | MuscleMode.DELTOIDS,
         nb_cycles_to_run: int = 5,
         nb_cycles_to_keep: int = 3,
-        nb_initialization_cycles: int = 8,
+        nb_init_intensity_increasing_steps: int = 8,
+        n_iterations: int = 50,
         really_change_stim_intensity: bool = True,
         worker_plot: LivePlotter = None,
     ):
@@ -46,7 +47,8 @@ class BayesianOptimizationWorker:
         self.stop_event = stop_event
         self.nb_cycles_to_run = nb_cycles_to_run
         self.nb_cycles_to_keep = nb_cycles_to_keep
-        self.nb_initialization_cycles = nb_initialization_cycles
+        self.nb_init_intensity_increasing_steps = nb_init_intensity_increasing_steps
+        self.n_iterations = n_iterations
 
         # Flag to stop the thread
         self._keep_running = True
@@ -61,16 +63,16 @@ class BayesianOptimizationWorker:
         # Worker that handles live plotting
         self.worker_plot = worker_plot
 
-        self.space: dict[str, list[Real]] = {key: [] for key in self.muscle_mode.muscle_keys}
+        self.space: dict[str, list[Real]] = {muscle: [] for muscle in self.muscle_mode.muscle_keys}
         self.build_search_space()
 
         # Store the iterations
-        self.cost_dict: dict[str, list[float]] = {key: [] for key in self.muscle_mode.muscle_keys}
+        self.cost_dict: dict[str, list[float]] = {muscle: [] for muscle in self.muscle_mode.muscle_keys}
         self.parameter_list: list[StimParameters] = []
         self._result_lock = threading.Lock()
         self._result_available = threading.Condition(self._result_lock)
 
-        self.best_result_dict: dict[str, float] = {key: None for key in self.muscle_mode.muscle_keys}  # will hold gp_minimize's result
+        self.best_result_dict: dict[str, float] = {muscle: None for muscle in self.muscle_mode.muscle_keys}  # will hold gp_minimize's result
 
         # Debugging flag to avoid large stim during tests
         self.really_change_stim_intensity = really_change_stim_intensity
@@ -423,7 +425,7 @@ class BayesianOptimizationWorker:
         )
         self.best_result_dict = bayesian_optimizer.optimize(
             n_iterations=75,
-            nb_initialization_cycles=self.nb_initialization_cycles,
+            nb_init_intensity_increasing_steps=self.nb_init_intensity_increasing_steps,
         )
 
         self._logger.info(f"Optimization finished.")
