@@ -1,12 +1,8 @@
 """
 This script allows to start stimulation with a specific intensity.
 It should be used to determine what is the motor threshold and 8 on a borg scale for each subject.
-
-biceps_r = [, ]
-triceps_r = [, ]
-biceps_l = [, ]
-triceps_l = [, ]
 """
+
 import threading
 import time
 import sys
@@ -26,8 +22,8 @@ from PyQt6.QtCore import Qt
 
 from pedal_worker import PedalWorker
 from stim_worker import StimulationWorker
-from common_types import StimParameters
-from constants import STIMULATION_RANGE, MUSCLE_KEYS
+from common_types import StimParameters, MuscleMode
+from constants import STIMULATION_RANGE
 
 from pedal_communication import DataCollector, PedalDevice
 
@@ -119,13 +115,14 @@ class MuscleSection(QGroupBox):
 class Interface(QMainWindow):
     """Main application window."""
 
-    def __init__(self, worker_stim: StimulationWorker):
+    def __init__(self, worker_stim: StimulationWorker, muscle_mode: MuscleMode.BOTH):
         super().__init__(parent=None)
         self.worker_stim = worker_stim
+        self.muscle_mode = muscle_mode
 
         # Store the parameters for each muscle
         self.parameters = {}
-        for muscle in MUSCLE_KEYS:
+        for muscle in self.muscle_mode.muscle_keys:
             self.parameters[muscle] = {
                 'intensity': 0
             }
@@ -152,6 +149,18 @@ class Interface(QMainWindow):
             onset_deg_triceps_l=STIMULATION_RANGE["triceps_l"][0],
             offset_deg_triceps_l=STIMULATION_RANGE["triceps_l"][1],
             pulse_intensity_triceps_l=self.parameters["triceps_l"]["intensity"],
+            onset_deg_delt_post_r=STIMULATION_RANGE["delt_post_r"][0],
+            offset_deg_delt_post_r=STIMULATION_RANGE["delt_post_r"][1],
+            pulse_intensity_delt_post_r=self.parameters["delt_post_r"]["intensity"],
+            onset_deg_delt_ant_r=STIMULATION_RANGE["delt_ant_r"][0],
+            offset_deg_delt_ant_r=STIMULATION_RANGE["delt_ant_r"][1],
+            pulse_intensity_delt_ant_r=self.parameters["delt_ant_r"]["intensity"],
+            onset_deg_delt_post_l=STIMULATION_RANGE["delt_post_l"][0],
+            offset_deg_delt_post_l=STIMULATION_RANGE["delt_post_l"][1],
+            pulse_intensity_delt_post_l=self.parameters["delt_post_l"]["intensity"],
+            onset_deg_delt_ant_l=STIMULATION_RANGE["delt_ant_l"][0],
+            offset_deg_delt_ant_l=STIMULATION_RANGE["delt_ant_l"][1],
+            pulse_intensity_delt_ant_l=self.parameters["delt_ant_l"]["intensity"],
         )
         # Send the updated parameters to the stimulation worker
         self.worker_stim.controller.apply_parameters(params)
@@ -176,6 +185,10 @@ class Interface(QMainWindow):
             "triceps_r": "Triceps Right",
             "biceps_l": "Biceps Left",
             "triceps_l": "Triceps Left",
+            "delt_post_r": "Posterior Deltoid Right",
+            "delt_ant_r": "Anterior Deltoid Right",
+            "delt_post_l": "Posterior Deltoid Left",
+            "delt_ant_l": "Anterior Deltoid Left",
         }
 
         for key in muscle_names:
@@ -195,6 +208,8 @@ class Interface(QMainWindow):
 
 def start_stimulate(data_collector: DataCollector):
 
+    muscle_mode = MuscleMode.BOTH()
+
     # Shared stop flag
     stop_event = threading.Event()
 
@@ -210,28 +225,12 @@ def start_stimulate(data_collector: DataCollector):
     # the angle coming from the pedal device instead of the NI-DAQ.
     worker_stim = StimulationWorker(
         worker_pedal=worker_pedal,
+        muscle_mode=muscle_mode,
     )
-    # worker_stim.controller.apply_parameters(
-    #     StimParameters(
-    #         onset_deg_biceps_r=STIMULATION_RANGE["biceps_r"][0],
-    #         offset_deg_biceps_r=STIMULATION_RANGE["biceps_r"][1],
-    #         pulse_intensity_biceps_r=biceps_r_intensity,
-    #         onset_deg_triceps_r=STIMULATION_RANGE["triceps_r"][0],
-    #         offset_deg_triceps_r=STIMULATION_RANGE["triceps_r"][1],
-    #         pulse_intensity_triceps_r=triceps_r_intensity,
-    #         onset_deg_biceps_l=STIMULATION_RANGE["biceps_l"][0],
-    #         offset_deg_biceps_l=STIMULATION_RANGE["biceps_l"][1],
-    #         pulse_intensity_biceps_l=biceps_l_intensity,
-    #         onset_deg_triceps_l=STIMULATION_RANGE["triceps_l"][0],
-    #         offset_deg_triceps_l=STIMULATION_RANGE["triceps_l"][1],
-    #         pulse_intensity_triceps_l=triceps_l_intensity,
-    #     ),
-    #     really_change_stim_intensity=True,
-    # )
 
     # Create a GUI so that the subject/experimentator can interact with the stimulation parameters
     app = QApplication(sys.argv)
-    interface = Interface(worker_stim=None)
+    interface = Interface(worker_stim=None, muscle_mode=muscle_mode)
     interface.show()
 
     threading.Thread(target=worker_pedal.run, daemon=True).start()

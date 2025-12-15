@@ -12,17 +12,20 @@ from bo_worker import BayesianOptimizationWorker
 from stim_worker import StimulationWorker
 from pedal_worker import PedalWorker
 from live_plotter import LivePlotter
+from common_types import MuscleMode
 
 from pedal_communication import PedalDevice, DataCollector
 
 
 def start_stimulation_optimization(data_collector: DataCollector) -> None:
 
+    muscle_mode = MuscleMode.BICEPS_TRICEPS()
+
     # Shared stop flag
     stop_event = threading.Event()
 
     # Create a thread to plot the results in real time
-    # worker_plot = LivePlotter()
+    # worker_plot = LivePlotter(muscle_mode=muscle_mode)
 
     # Create pedal worker (third worker) that provides the crank angle
     worker_pedal = PedalWorker(
@@ -36,6 +39,7 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
     # the angle coming from the pedal device instead of the NI-DAQ.
     worker_stim = StimulationWorker(
         worker_pedal=worker_pedal,
+        muscle_mode=muscle_mode,
     )
 
     # Create Bayesian optimization worker
@@ -43,6 +47,7 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
         stop_event=stop_event,
         worker_pedal=worker_pedal,
         worker_stim=worker_stim,
+        muscle_mode=muscle_mode,
         nb_initialization_cycles=5,
         really_change_stim_intensity=True,  # This is just a debugging flag to avoid having large stim during tests
         # worker_plot=worker_plot,

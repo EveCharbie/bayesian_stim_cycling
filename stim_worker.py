@@ -8,8 +8,8 @@ from typing import Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from pedal_worker import PedalWorker
 
-from common_types import StimParameters
-from constants import STIMULATION_RANGE, MUSCLE_KEYS
+from common_types import StimParameters, MuscleMode
+from constants import STIMULATION_RANGE
 
 from pysciencemode import Rehastim2 as St
 from pysciencemode import Channel as Ch
@@ -25,17 +25,22 @@ class HandCycling2:
     BO updates only the stimulation parameters.
     """
 
-    def __init__(self, worker_pedal):
+    def __init__(self, worker_pedal: PedalWorker, muscle_mode: MuscleMode.BICEPS_TRICEPS | MuscleMode.DELTOIDS):
 
         self.worker_pedal = worker_pedal
+        self.muscle_mode = muscle_mode
 
         # ----------------- Stimulator setup ----------------- #
         # Default intensity for each muscle (will be overridden by BO)
         self.intensity = {
-            "biceps_r": 1,
-            "triceps_r": 1,
-            "biceps_l": 1,
-            "triceps_l": 1,
+            "biceps_r": 0,
+            "triceps_r": 0,
+            "biceps_l": 0,
+            "triceps_l": 0,
+            "delt_post_r": 0,
+            "delt_ant_r": 0,
+            "delt_post_l": 0,
+            "delt_ant_l": 0,
         }
 
         # Pulse width for each muscle
@@ -44,6 +49,10 @@ class HandCycling2:
             "triceps_r": 300,
             "biceps_l": 300,
             "triceps_l": 300,
+            "delt_post_r": 300,
+            "delt_ant_r": 300,
+            "delt_post_l": 300,
+            "delt_ant_l": 300,
         }
 
         # Keeps track of if the stimulation is currently active for each muscle
@@ -52,6 +61,10 @@ class HandCycling2:
             "triceps_r": False,
             "biceps_l": False,
             "triceps_l": False,
+            "delt_post_r": False,
+            "delt_ant_r": False,
+            "delt_post_l": False,
+            "delt_ant_l": False,
         }
 
         # Default stimulation ranges in degrees (will be overridden by BO)
@@ -60,13 +73,13 @@ class HandCycling2:
         self.list_channels = [
             Ch(
                 mode=Modes.SINGLE,
-                no_channel=i + 1,
+                no_channel=self.muscle_mode.channel_indices[i],
                 amplitude=self.intensity[muscle_name],  # Intensity
                 pulse_width=self.pulse_width[muscle_name],
-                name=MUSCLE_KEYS[i],
+                name=muscle_name,
                 device_type=Device.Rehastim2,
             )
-            for i, muscle_name in enumerate(MUSCLE_KEYS)
+            for i, muscle_name in enumerate(self.muscle_mode.muscle_keys)
         ]
 
         # Create stimulator
@@ -83,10 +96,6 @@ class HandCycling2:
         self.previous_speed = 0.0      # last speed (deg/s)
         self.previous_time = time.perf_counter()
 
-        # # (optional, for debugging)
-        # self.sensix_angle = 0.0        # last real angle from pedal (deg)
-        # self.sensix_speed = 0.0        # last real speed from pedal (deg/s)
-
         # ----------------- Start stimulation once ----------------- #
         self.stimulator.start_stimulation(upd_list_channels=self.list_channels)
 
@@ -97,7 +106,7 @@ class HandCycling2:
           - intensity per muscle
           - pulse_width per muscle
         """
-        for muscle in MUSCLE_KEYS:
+        for muscle in self.muscle_mode.muscle_keys:
             onset = int(getattr(params, f"onset_deg_{muscle}"))
             offset = int(getattr(params, f"offset_deg_{muscle}"))
             intensity = int(getattr(params, f"pulse_intensity_{muscle}"))
@@ -129,11 +138,10 @@ class HandCycling2:
         should_activate_stim = False
         should_deactivate_stim = False
         self.angle = self.worker_pedal.get_latest_estimated_angle()
-        for key in self.stimulation_range.keys():
-            onset, offset = self.stimulation_range[key]
-            is_stimulation_active = self.stimulation_state[key]
-            ch_idx = MUSCLE_KEYS.index(key)
-            channel = self.list_channels[ch_idx]
+        for i, muscle in enumerate(self.muscle_mode.muscle_keys):
+            onset, offset = self.stimulation_range[muscle]
+            is_stimulation_active = self.stimulation_state[muscle]
+            channel = self.list_channels[i]
 
             if self.angle > 360.0 or self.angle < 0:
                 raise RuntimeError("Error: this should not happen. The angle is out of range [0. 360].")
@@ -151,13 +159,13 @@ class HandCycling2:
 
             if not is_stimulation_active and should_be_active:
                 # Start stimulation
-                self.stimulation_state[key] = True
-                channel.set_amplitude(self.intensity[key])
-                channel.set_pulse_width(self.pulse_width[key])
+                self.stimulation_state[muscle] = True
+                channel.set_amplitude(self.intensity[muscle])
+                channel.set_pulse_width(self.pulse_width[muscle])
                 should_activate_stim = True
             elif is_stimulation_active and not self.should_stimulation_be_active(onset, offset):
                 # Stop stimulation
-                self.stimulation_state[key] = False
+                self.stimulation_state[muscle] = False
                 channel.set_amplitude(0.0)
                 should_deactivate_stim = True
             else:
@@ -173,16 +181,18 @@ class StimulationWorker:
 
     def __init__(
         self,
-        worker_pedal: Optional["PedalWorker"],
+        worker_pedal: PedalWorker,
+        muscle_mode: MuscleMode.BICEPS_TRICEPS | MuscleMode.DELTOIDS,
     ):
         # Flag to stop the thread
         self._keep_running = True
 
         # Controller that runs continuously
-        self.controller = HandCycling2(worker_pedal)
+        self.controller = HandCycling2(worker_pedal, muscle_mode)
 
         # Worker that provides pedal data
         self.worker_pedal = worker_pedal
+        self.muscle_mode = muscle_mode
 
         # Logger
         logging.basicConfig(

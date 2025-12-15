@@ -12,9 +12,9 @@ from skopt.space import Real
 
 from pedal_worker import PedalWorker
 from stim_worker import StimulationWorker
-from common_types import StimParameters
+from common_types import StimParameters, MuscleMode
 from live_plotter import LivePlotter
-from constants import MUSCLE_KEYS, PARAMS_BOUNDS, CUTOFF_ANGLES
+from constants import PARAMS_BOUNDS, CUTOFF_ANGLES
 from bayesian_optimizer import BayesianOptimizer
 
 from pedal_communication.data.data import DataType
@@ -35,6 +35,7 @@ class BayesianOptimizationWorker:
         stop_event: threading.Event,
         worker_pedal: PedalWorker,
         worker_stim: StimulationWorker,
+        muscle_mode: MuscleMode.BICEPS_TRICEPS | MuscleMode.DELTOIDS,
         nb_cycles_to_run: int = 5,
         nb_cycles_to_keep: int = 3,
         nb_initialization_cycles: int = 8,
@@ -55,20 +56,21 @@ class BayesianOptimizationWorker:
 
         # Worker that handles stimulation
         self.worker_stim = worker_stim
+        self.muscle_mode = muscle_mode
 
         # Worker that handles live plotting
         self.worker_plot = worker_plot
 
-        self.space: dict[str, list[Real]] = {key: [] for key in MUSCLE_KEYS}
+        self.space: dict[str, list[Real]] = {key: [] for key in self.muscle_mode.muscle_keys}
         self.build_search_space()
 
         # Store the iterations
-        self.cost_dict: dict[str, list[float]] = {key: [] for key in MUSCLE_KEYS}
+        self.cost_dict: dict[str, list[float]] = {key: [] for key in self.muscle_mode.muscle_keys}
         self.parameter_list: list[StimParameters] = []
         self._result_lock = threading.Lock()
         self._result_available = threading.Condition(self._result_lock)
 
-        self.best_result_dict: dict[str, float] = {key: None for key in MUSCLE_KEYS}  # will hold gp_minimize's result
+        self.best_result_dict: dict[str, float] = {key: None for key in self.muscle_mode.muscle_keys}  # will hold gp_minimize's result
 
         # Debugging flag to avoid large stim during tests
         self.really_change_stim_intensity = really_change_stim_intensity
@@ -79,6 +81,10 @@ class BayesianOptimizationWorker:
             "triceps_r": self._triceps_r_cost,
             "biceps_l": self._biceps_l_cost,
             "triceps_l": self._triceps_l_cost,
+            "delt_post_r": self._biceps_r_cost,  # This is not a bad copy-paste.
+            "delt_ant_r": self._triceps_r_cost,  # The function is the same, except the name of the muscle
+            "delt_post_l": self._biceps_l_cost,
+            "delt_ant_l": self._triceps_l_cost,
         }
 
         # Logging
@@ -92,7 +98,7 @@ class BayesianOptimizationWorker:
         """
         Create skopt search space: 4 parameters × 4 muscles = 16 dimensions.
         """
-        for muscle in MUSCLE_KEYS:
+        for muscle in self.muscle_mode.muscle_keys:
             for param_name in PARAMS_BOUNDS[muscle].keys():
                 low, high = PARAMS_BOUNDS[muscle][param_name]
                 dim_name = f"{param_name}_{muscle}"
@@ -181,7 +187,7 @@ class BayesianOptimizationWorker:
     #     cost = total_left_power + total_right_power + 0.1 * (right_intensity + left_intensity)
     #     return float(cost)
 
-    def _biceps_r_cost(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
+    def _biceps_r_cost(self, last_cycles_data: Dict[str, list[np.ndarray]], muscle_name: str) -> float:
         # Angles
         angles = np.hstack(last_cycles_data["angles"])
         if np.any(angles < 0) or np.any(angles > 2*np.pi):
@@ -205,13 +211,13 @@ class BayesianOptimizationWorker:
         power = -np.sum(right_power ** 2)
 
         # Minimize stimulation intensity
-        intensity = self.worker_stim.controller.intensity["biceps_r"] ** 2
+        intensity = self.worker_stim.controller.intensity[muscle_name] ** 2
 
         cost = power + 0.05 * intensity
         # print("biceps r cost:", cost)
         return float(cost)
 
-    def _triceps_r_cost(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
+    def _triceps_r_cost(self, last_cycles_data: Dict[str, list[np.ndarray]], muscle_name: str) -> float:
         # Angles
         angles = np.hstack(last_cycles_data["angles"])
         if np.any(angles < 0) or np.any(angles > 2 * np.pi):
@@ -237,13 +243,13 @@ class BayesianOptimizationWorker:
         power = -np.sum(right_power ** 2)
 
         # Minimize stimulation intensity
-        intensity = self.worker_stim.controller.intensity["triceps_r"] ** 2
+        intensity = self.worker_stim.controller.intensity[muscle_name] ** 2
 
         cost = power + 0.05 * intensity
         # print("triceps r cost:", cost)
         return float(cost)
 
-    def _biceps_l_cost(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
+    def _biceps_l_cost(self, last_cycles_data: Dict[str, list[np.ndarray]], muscle_name: str) -> float:
         # Angles
         angles = np.hstack(last_cycles_data["angles"])
         if np.any(angles < 0) or np.any(angles > 2 * np.pi):
@@ -268,13 +274,13 @@ class BayesianOptimizationWorker:
         power = -np.sum(left_power ** 2)
 
         # Minimize stimulation intensity
-        intensity = self.worker_stim.controller.intensity["biceps_l"] ** 2
+        intensity = self.worker_stim.controller.intensity[muscle_name] ** 2
 
         cost = power + 0.05 * intensity
         # print("biceps l cost:", cost)
         return float(cost)
 
-    def _triceps_l_cost(self, last_cycles_data: Dict[str, list[np.ndarray]]) -> float:
+    def _triceps_l_cost(self, last_cycles_data: Dict[str, list[np.ndarray]], muscle_name: str) -> float:
         # Angles
         angles = np.hstack(last_cycles_data["angles"])
         if np.any(angles < 0) or np.any(angles > 2 * np.pi):
@@ -297,12 +303,13 @@ class BayesianOptimizationWorker:
         power = -np.sum(left_power ** 2)
 
         # Minimize stimulation intensity
-        intensity = self.worker_stim.controller.intensity["triceps_l"] ** 2
+        intensity = self.worker_stim.controller.intensity[muscle_name] ** 2
 
         cost = power + 0.05 * intensity
         # print("triceps l cost:", cost)
         return float(cost)
 
+    # This is retired code to be used with gp_minimize
     # def _objective(self, x: List[float]) -> float:
     #     """
     #     Objective passed to gp_minimize.
@@ -363,8 +370,8 @@ class BayesianOptimizationWorker:
         # Get cost value
         last_cycles_data = self.get_last_cycles_data()
         cost_list = []
-        for muscle in MUSCLE_KEYS:
-            cost = self.cost_function[muscle](last_cycles_data)
+        for muscle in self.muscle_mode.muscle_keys:
+            cost = self.cost_function[muscle](last_cycles_data, muscle)
             cost_list += [cost]
 
             # Update results and live plotter
@@ -380,14 +387,15 @@ class BayesianOptimizationWorker:
         Save the BO results to a file.
         """
         results = {
-            "best_params": [self.best_result_dict[muscle] for muscle in MUSCLE_KEYS],
-            "best_cost": [self.best_result_dict[muscle] for muscle in MUSCLE_KEYS],
+            "best_params": [self.best_result_dict[muscle] for muscle in self.muscle_mode.muscle_keys],
+            "best_cost": [self.best_result_dict[muscle] for muscle in self.muscle_mode.muscle_keys],
             "cost_list": self.cost_dict,
             "parameter_list": self.parameter_list,
         }
-        with open("bo_results.pkl", "wb") as f:
+        file_name = f"bo_results{self.muscle_mode.value}.pkl"
+        with open(file_name, "wb") as f:
             pickle.dump(results, f)
-        self._logger.info(f"Results saved to bo_results.pkl.")
+        self._logger.info(f"Results saved to {file_name}")
 
     def run(self) -> None:
         """
@@ -395,7 +403,7 @@ class BayesianOptimizationWorker:
         """
         self._logger.info(f"Starting Bayesian optimization with continuous stimulation...")
 
-
+        # Retired code
         # self.best_result = gp_minimize(
         #     func=self._objective,
         #     dimensions=self.space,
@@ -409,6 +417,7 @@ class BayesianOptimizationWorker:
 
         bayesian_optimizer = BayesianOptimizer(
             iteration_func=self._make_an_interation,
+            muscle_mode=self.muscle_mode,
             xi=0.01,
             length_scale=1.0,
         )

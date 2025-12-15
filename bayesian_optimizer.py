@@ -6,7 +6,8 @@ from scipy.stats import norm
 from scipy.optimize import minimize
 from scipy.spatial.distance import cdist
 
-from constants import PARAMS_BOUNDS, MUSCLE_KEYS
+from common_types import MuscleMode
+from constants import PARAMS_BOUNDS
 
 
 class OptimizationResults:
@@ -83,6 +84,7 @@ class BayesianOptimizer:
     def __init__(
             self,
             iteration_func: Callable,
+            muscle_mode: MuscleMode.BICEPS_TRICEPS | MuscleMode.DELTOIDS,
             xi: float = 0.01,
             length_scale: float = 1.0,
     ):
@@ -94,14 +96,15 @@ class BayesianOptimizer:
         length_scale: GP kernel length scale. Higher values lead to smoother functions.
         """
         self.iteration_func = iteration_func
+        self.muscle_mode = muscle_mode
         self.n_params = 3
         self.xi = xi
-        self.gp = {key: GaussianProcess(length_scale=length_scale) for key in MUSCLE_KEYS}
+        self.gp = {key: GaussianProcess(length_scale=length_scale) for key in self.muscle_mode.muscle_keys}
 
-        self.input_observed = {key: np.empty((0, self.n_params)) for key in MUSCLE_KEYS}
-        self.output_observed = {key: np.empty((0, 1)) for key in MUSCLE_KEYS}
-        self.best_x = {key: np.empty((0, 1)) for key in MUSCLE_KEYS}
-        self.best_y = {key: np.inf for key in MUSCLE_KEYS}
+        self.input_observed = {key: np.empty((0, self.n_params)) for key in self.muscle_mode.muscle_keys}
+        self.output_observed = {key: np.empty((0, 1)) for key in self.muscle_mode.muscle_keys}
+        self.best_x = {key: np.empty((0, 1)) for key in self.muscle_mode.muscle_keys}
+        self.best_y = {key: np.inf for key in self.muscle_mode.muscle_keys}
 
         # Logging
         logging.basicConfig(
@@ -144,7 +147,7 @@ class BayesianOptimizer:
         n_restarts: Number of random restarts for optimization
         """
         next_x = []
-        for muscle in MUSCLE_KEYS:
+        for muscle in self.muscle_mode.muscle_keys:
             best_x: list[float] = None
             best_acquisition: float = np.inf
 
@@ -182,7 +185,7 @@ class BayesianOptimizer:
             # Get the initial parameters to test
             x = []
             x_all = []
-            for muscle in MUSCLE_KEYS:
+            for muscle in self.muscle_mode.muscle_keys:
                 intensity_increment = (PARAMS_BOUNDS[muscle]["pulse_intensity"][1] - PARAMS_BOUNDS[muscle]["pulse_intensity"][0]) / (
                             nb_initialization_cycles - 1)
 
@@ -203,7 +206,7 @@ class BayesianOptimizer:
                 x_all += [onset_this_time, offset_this_time, intensity_this_time]
 
             cost_list = self.iteration_func(x_all)
-            for i_muscle, muscle in enumerate(MUSCLE_KEYS):
+            for i_muscle, muscle in enumerate(self.muscle_mode.muscle_keys):
                 y = np.array(cost_list[i_muscle]).reshape(1, 1)
 
                 self.input_observed[muscle] = np.vstack((self.input_observed[muscle], np.array(x[i_muscle]).reshape(1, 3)))
@@ -213,7 +216,7 @@ class BayesianOptimizer:
                     self.best_y[muscle] = float(y)
                     self.best_x[muscle] = x[i_muscle].copy()
 
-        for muscle in MUSCLE_KEYS:
+        for muscle in self.muscle_mode.muscle_keys:
             self.gp[muscle].fit(self.input_observed[muscle], self.output_observed[muscle])
 
     def optimize(self, n_iterations: int = 20, nb_initialization_cycles: int = 8) -> dict[str, OptimizationResults]:
@@ -237,7 +240,7 @@ class BayesianOptimizer:
             next_y = self.iteration_func(next_x)
 
             # Update observations
-            for i_muscle, muscle in enumerate(MUSCLE_KEYS):
+            for i_muscle, muscle in enumerate(self.muscle_mode.muscle_keys):
                 parameters_this_muscle = np.array(next_x[i_muscle * 3:(i_muscle + 1) * 3]).reshape(1, 3)
                 self.input_observed[muscle] = np.vstack((self.input_observed[muscle], parameters_this_muscle))
                 self.output_observed[muscle] = np.vstack((self.output_observed[muscle], next_y[i_muscle]))
@@ -253,5 +256,5 @@ class BayesianOptimizer:
                 self._logger.info(f"[BO OPTIM] Iteration {i_iter + 1}/{n_iterations}: "
                                   f"y = {next_y[i_muscle]}, best = {self.best_y[muscle]}")
 
-        return {muscle: OptimizationResults(self.best_x[muscle], self.best_y[muscle]) for muscle in MUSCLE_KEYS}
+        return {muscle: OptimizationResults(self.best_x[muscle], self.best_y[muscle]) for muscle in self.muscle_mode.muscle_keys}
 

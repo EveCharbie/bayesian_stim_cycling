@@ -16,9 +16,9 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
 
-from constants import MUSCLE_KEYS, PARAMS_BOUNDS, STIMULATION_RANGE
+from constants import PARAMS_BOUNDS, STIMULATION_RANGE
 from stim_worker import StimulationWorker
-from common_types import StimParameters
+from common_types import StimParameters, MuscleMode
 from pedal_worker import PedalWorker
 
 from pedal_communication import DataType
@@ -199,14 +199,20 @@ class PlotCanvas(FigureCanvas):
 class Interface(QMainWindow):
     """Main application window."""
 
-    def __init__(self, worker_stim: StimulationWorker, worker_pedal: PedalWorker):
+    def __init__(
+            self,
+            worker_stim: StimulationWorker,
+            worker_pedal: PedalWorker,
+            muscle_mode: MuscleMode.BICEPS_TRICEPS | MuscleMode.DELTOIDS
+    ):
         super().__init__(parent=None)
         self.worker_stim = worker_stim
         self.worker_pedal = worker_pedal
+        self.muscle_mode = muscle_mode
 
         # Store the parameters for each muscle
         self.parameters = {}
-        for muscle in MUSCLE_KEYS:
+        for muscle in self.muscle_mode.muscle_keys:
             self.parameters[muscle] = {
                 'onset': (PARAMS_BOUNDS[muscle]["onset_deg"][0] + PARAMS_BOUNDS[muscle]["onset_deg"][1]) / 2,
                 'offset': (PARAMS_BOUNDS[muscle]["offset_deg"][0] + PARAMS_BOUNDS[muscle]["offset_deg"][1]) / 2,
@@ -239,6 +245,18 @@ class Interface(QMainWindow):
             self.parameters["triceps_l"]["onset"],
             self.parameters["triceps_l"]["offset"],
             self.parameters["triceps_l"]["intensity"],
+            self.parameters["delt_post_r"]["onset"],
+            self.parameters["delt_post_r"]["offset"],
+            self.parameters["delt_post_r"]["intensity"],
+            self.parameters["delt_ant_r"]["onset"],
+            self.parameters["delt_ant_r"]["offset"],
+            self.parameters["delt_ant_r"]["intensity"],
+            self.parameters["delt_post_l"]["onset"],
+            self.parameters["delt_post_l"]["offset"],
+            self.parameters["delt_post_l"]["intensity"],
+            self.parameters["delt_ant_l"]["onset"],
+            self.parameters["delt_ant_l"]["offset"],
+            self.parameters["delt_ant_l"]["intensity"],
         )
         # Send the updated parameters to the stimulation worker
         # self.worker_stim.controller.apply_parameters(params)
@@ -268,6 +286,10 @@ class Interface(QMainWindow):
             "triceps_r": "Triceps Right",
             "biceps_l": "Biceps Left",
             "triceps_l": "Triceps Left",
+            "delt_post_r": "Posterior Deltoid Right",
+            "delt_ant_r": "Anterior Deltoid Right",
+            "delt_post_l": "Posterior Deltoid Left",
+            "delt_ant_l": "Anterior Deltoid Left",
         }
 
         for key in muscle_names:

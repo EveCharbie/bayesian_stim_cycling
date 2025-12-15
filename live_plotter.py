@@ -8,14 +8,17 @@ import matplotlib
 matplotlib.use("TkAgg")  # or 'Qt5Agg'
 import matplotlib.pyplot as plt
 
-from common_types import StimParameters
-from constants import PARAMS_BOUNDS, MUSCLE_KEYS, STIMULATION_RANGE
+from common_types import StimParameters, MuscleMode
+from constants import PARAMS_BOUNDS, STIMULATION_RANGE
 
 
 class LivePlotter:
     """Separate class to handle live plotting in a thread"""
 
-    def __init__(self):
+    def __init__(self, muscle_mode:MuscleMode.BICEPS_TRICEPS | MuscleMode.DELTOIDS):
+
+        self.muscle_mode =muscle_mode
+
         self.fig_optim = None
         self.axs_optim = None
         self.fig_power = None
@@ -26,7 +29,7 @@ class LivePlotter:
         self._lock = threading.Lock()
 
         # Data to plot
-        self.costs: dict[str, list[float]] = {key: [] for key in MUSCLE_KEYS}
+        self.costs: dict[str, list[float]] = {key: [] for key in self.muscle_mode.muscle_keys}
         self.parameters: list[StimParameters] = []
         self.angles = []
         self.left_powers = []
@@ -41,9 +44,9 @@ class LivePlotter:
     def update_data(self, cost_dict: dict[str, list[float]], parameter_list: list[StimParameters]):
         """Thread-safe data update"""
         with self._lock:
-            for muscle in MUSCLE_KEYS:
+            for muscle in self.muscle_mode.muscle_keys:
                 self.costs[muscle] = np.array(cost_dict[muscle])
-            parameters_array = np.empty((0, len(PARAMS_BOUNDS["biceps_r"].keys()) * len(MUSCLE_KEYS)))
+            parameters_array = np.empty((0, len(PARAMS_BOUNDS["biceps_r"].keys()) * len(self.muscle_mode.muscle_keys)))
             for param in parameter_list:
                 parameters_array = np.vstack((parameters_array, param.to_flat_vector()))
             self.parameters = parameters_array
@@ -57,7 +60,7 @@ class LivePlotter:
 
     def _initialize_plots(self):
         """Initialize the plot window"""
-        n_muscles = len(MUSCLE_KEYS)
+        n_muscles = len(self.muscle_mode.muscle_keys)
         self.fig_optim, self.axs_optim = plt.subplots(n_muscles, 3, figsize=(12, 8))
         plt.ion()
 
@@ -91,7 +94,7 @@ class LivePlotter:
     def _update_plots(self) -> None:
         """Update all plots with current data"""
 
-        if len(self.costs[MUSCLE_KEYS[0]]) == 0 or len(self.parameters) == 0:
+        if len(self.costs[self.muscle_mode.muscle_keys[0]]) == 0 or len(self.parameters) == 0:
             # Wait for data to be collected
             time.sleep(0.05)
         else:
@@ -99,12 +102,12 @@ class LivePlotter:
             for ax in self.axs_optim.flat:
                 ax.cla()
 
-            colors = np.arange(100)[:len(self.costs[MUSCLE_KEYS[0]])]
+            colors = np.arange(100)[:len(self.costs[self.muscle_mode.muscle_keys[0]])]
             # print(self.costs)
             # print(self.parameters)
 
             i_param = 0
-            for i_muscle, muscle in enumerate(MUSCLE_KEYS):
+            for i_muscle, muscle in enumerate(self.muscle_mode.muscle_keys):
                 self.axs_optim[i_muscle, 0].scatter(self.parameters[:, i_param], self.costs[muscle], c=colors, cmap="viridis")
                 self.axs_optim[i_muscle, 0].plot(self.parameters[-1, i_param], self.costs[muscle][-1], "kx")
                 self.axs_optim[i_muscle, 0].set_title("Onset")
@@ -136,8 +139,44 @@ class LivePlotter:
                 ax.cla()
 
             # Add the ranges for stimulation
+            self.axs_power[1].fill_between(
+                np.linspace(
+                    np.radians(STIMULATION_RANGE[self.muscle_mode.muscle_keys[0]][0]),
+                    np.radians(STIMULATION_RANGE[self.muscle_mode.muscle_keys[0]][1]),
+                    10
+                ),
+                0,  # Fill from radius 0
+                1000000,  # To radius 1
+                color='m',
+                alpha=0.3,
+            )
+            self.axs_power[1].fill_between(
+                np.linspace(
+                    np.radians(STIMULATION_RANGE[self.muscle_mode.muscle_keys[1]][0]),
+                    2 * np.pi,
+                    10),
+                0,  # Fill from radius 0
+                1000000,  # To radius 1
+                color='c',
+                alpha=0.3,
+            )
+            self.axs_power[1].fill_between(
+                np.linspace(
+                    0,
+                    np.radians(STIMULATION_RANGE[self.muscle_mode.muscle_keys[1]][1]),
+                    10
+                ),
+                0,  # Fill from radius 0
+                1000000,  # To radius 1
+                color='c',
+                alpha=0.3,
+            )
             self.axs_power[0].fill_between(
-                np.linspace(np.radians(STIMULATION_RANGE["biceps_l"][0]),  2 * np.pi, 10),
+                np.linspace(
+                    np.radians(STIMULATION_RANGE[self.muscle_mode.muscle_keys[2]][0]),
+                    2 * np.pi,
+                    10
+                ),
                 0,  # Fill from radius 0
                 1000000,  # To radius 1
                 color='m',
@@ -145,40 +184,27 @@ class LivePlotter:
                 label='Biceps'
             )
             self.axs_power[0].fill_between(
-                np.linspace(0, np.radians(STIMULATION_RANGE["biceps_l"][1]), 10),
+                np.linspace(
+                    0,
+                    np.radians(STIMULATION_RANGE[self.muscle_mode.muscle_keys[2]][1]),
+                    10
+                ),
                 0,  # Fill from radius 0
                 1000000,  # To radius 1
                 color='m',
                 alpha=0.3,
             )
             self.axs_power[0].fill_between(
-                np.linspace(np.radians(STIMULATION_RANGE["triceps_l"][0]), np.radians(STIMULATION_RANGE["triceps_l"][1]), 10),
+                np.linspace(
+                    np.radians(STIMULATION_RANGE[self.muscle_mode.muscle_keys[3]][0]),
+                    np.radians(STIMULATION_RANGE[self.muscle_mode.muscle_keys[3]][1]),
+                    10
+                ),
                 0,  # Fill from radius 0
                 1000000,  # To radius 1
                 color='c',
                 alpha=0.3,
                 label='Triceps'
-            )
-            self.axs_power[1].fill_between(
-                np.linspace(np.radians(STIMULATION_RANGE["biceps_r"][0]), np.radians(STIMULATION_RANGE["biceps_r"][1]), 10),
-                0,  # Fill from radius 0
-                1000000,  # To radius 1
-                color='m',
-                alpha=0.3,
-            )
-            self.axs_power[1].fill_between(
-                np.linspace(np.radians(STIMULATION_RANGE["triceps_r"][0]), 2 * np.pi, 10),
-                0,  # Fill from radius 0
-                1000000,  # To radius 1
-                color='c',
-                alpha=0.3,
-            )
-            self.axs_power[1].fill_between(
-                np.linspace(0, np.radians(STIMULATION_RANGE["triceps_r"][1]), 10),
-                0,  # Fill from radius 0
-                1000000,  # To radius 1
-                color='c',
-                alpha=0.3,
             )
             self.axs_power[0].plot(np.array([105, 105]) * np.pi / 180, [0, 1e6], 'k--', label='Power split')
             self.axs_power[0].plot(np.array([290, 290]) * np.pi / 180, [0, 1e6], 'k--')
