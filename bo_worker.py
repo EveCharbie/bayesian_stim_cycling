@@ -190,124 +190,137 @@ class BayesianOptimizationWorker:
     #     return float(cost)
 
     def _biceps_r_cost(self, last_cycles_data: Dict[str, list[np.ndarray]], muscle_name: str) -> float:
-        # Angles
-        angles = np.hstack(last_cycles_data["angles"])
-        if np.any(angles < 0) or np.any(angles > 2*np.pi):
-            raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
 
-        lower_bound = np.radians(CUTOFF_ANGLES["right"][0])
-        upper_bound = np.radians(CUTOFF_ANGLES["right"][1])
-        angles_in_range_indices = np.where(
-            np.logical_and(
-                lower_bound < angles,
-                angles < upper_bound,
+        power = []
+        for i_cycle in range(len(last_cycles_data["right_power"])):
+
+            # Angles
+            angles = last_cycles_data["angles"][i_cycle]
+            if np.any(angles < 0) or np.any(angles > 2*np.pi):
+                raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
+
+            lower_bound = np.radians(CUTOFF_ANGLES["right"][0])
+            upper_bound = np.radians(CUTOFF_ANGLES["right"][1])
+            angles_in_range_indices = np.where(
+                np.logical_and(
+                    lower_bound < angles,
+                    angles < upper_bound,
+                )
             )
-        )
 
-        if len(angles_in_range_indices) > 0:
-            angles_in_range_indices = angles_in_range_indices[0]
-            # print("biceps r", angles_in_range_indices.shape[0], " / ", angles.shape[0])
+            if len(angles_in_range_indices) > 0:
+                angles_in_range_indices = angles_in_range_indices[0]
+                # print("biceps r", angles_in_range_indices.shape[0], " / ", angles.shape[0])
 
-        # Maximize power
-        right_power = np.hstack(last_cycles_data["right_power"])[angles_in_range_indices]
-        power = -np.sum(right_power ** 2)
+            # Maximize power
+            right_power = last_cycles_data["right_power"][i_cycle][angles_in_range_indices]
+            power += [-np.sum(right_power ** 2)]
 
         # Minimize stimulation intensity
         intensity = self.worker_stim.controller.intensity[muscle_name] ** 2
 
-        cost = power + 0.05 * intensity
+        cost = 3*np.median(np.array(power)) + 0.05 * intensity
         # print("biceps r cost:", cost)
         return float(cost)
 
     def _triceps_r_cost(self, last_cycles_data: Dict[str, list[np.ndarray]], muscle_name: str) -> float:
-        # Angles
-        angles = np.hstack(last_cycles_data["angles"])
-        if np.any(angles < 0) or np.any(angles > 2 * np.pi):
-            raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
 
-        lower_bound = np.radians(CUTOFF_ANGLES["right"][1])
-        upper_bound = np.radians(CUTOFF_ANGLES["right"][0])
-        angles_in_range_indices = np.where(
-            np.logical_not(
-                np.logical_and(
-                    angles < lower_bound,
-                    upper_bound < angles,
+        power = []
+        for i_cycle in range(len(last_cycles_data["right_power"])):
+            # Angles
+            angles = last_cycles_data["angles"][i_cycle]
+            if np.any(angles < 0) or np.any(angles > 2 * np.pi):
+                raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
+
+            lower_bound = np.radians(CUTOFF_ANGLES["right"][1])
+            upper_bound = np.radians(CUTOFF_ANGLES["right"][0])
+            angles_in_range_indices = np.where(
+                np.logical_not(
+                    np.logical_and(
+                        angles < lower_bound,
+                        upper_bound < angles,
+                    )
                 )
             )
-        )
 
-        if len(angles_in_range_indices) > 0:
-            angles_in_range_indices = angles_in_range_indices[0]
-            # print("triceps r", angles_in_range_indices.shape[0], " / ", angles.shape[0])
+            if len(angles_in_range_indices) > 0:
+                angles_in_range_indices = angles_in_range_indices[0]
+                # print("triceps r", angles_in_range_indices.shape[0], " / ", angles.shape[0])
 
-        # Maximize power
-        right_power = np.hstack(last_cycles_data["right_power"])[angles_in_range_indices]
-        power = -np.sum(right_power ** 2)
+            # Maximize power
+            right_power = last_cycles_data["right_power"][i_cycle][angles_in_range_indices]
+            power += [-np.sum(right_power ** 2)]
 
         # Minimize stimulation intensity
         intensity = self.worker_stim.controller.intensity[muscle_name] ** 2
 
-        cost = power + 0.05 * intensity
+        cost = 3 * np.median(np.array(power)) + 0.05 * intensity
         # print("triceps r cost:", cost)
         return float(cost)
 
     def _biceps_l_cost(self, last_cycles_data: Dict[str, list[np.ndarray]], muscle_name: str) -> float:
-        # Angles
-        angles = np.hstack(last_cycles_data["angles"])
-        if np.any(angles < 0) or np.any(angles > 2 * np.pi):
-            raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
-        lower_bound = np.radians(CUTOFF_ANGLES["left"][1])
-        upper_bound = np.radians(CUTOFF_ANGLES["left"][0])
-        angles_in_range_indices = np.where(
-            np.logical_not(
-                np.logical_and(
-                    angles < lower_bound,
-                    upper_bound < angles,
+
+        power = []
+        for i_cycle in range(len(last_cycles_data["left_power"])):
+            # Angles
+            angles = last_cycles_data["angles"][i_cycle]
+            if np.any(angles < 0) or np.any(angles > 2 * np.pi):
+                raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
+            lower_bound = np.radians(CUTOFF_ANGLES["left"][1])
+            upper_bound = np.radians(CUTOFF_ANGLES["left"][0])
+            angles_in_range_indices = np.where(
+                np.logical_not(
+                    np.logical_and(
+                        angles < lower_bound,
+                        upper_bound < angles,
+                    )
                 )
             )
-        )
 
-        if len(angles_in_range_indices) > 0:
-            angles_in_range_indices = angles_in_range_indices[0]
-            # print("biceps l", angles_in_range_indices.shape[0], " / ", angles.shape[0])
+            if len(angles_in_range_indices) > 0:
+                angles_in_range_indices = angles_in_range_indices[0]
+                # print("biceps l", angles_in_range_indices.shape[0], " / ", angles.shape[0])
 
-        # Maximize power
-        left_power = np.hstack(last_cycles_data["left_power"])[angles_in_range_indices]
-        power = -np.sum(left_power ** 2)
+            # Maximize power
+            left_power = last_cycles_data["left_power"][i_cycle][angles_in_range_indices]
+            power += [-np.sum(left_power ** 2)]
 
         # Minimize stimulation intensity
         intensity = self.worker_stim.controller.intensity[muscle_name] ** 2
 
-        cost = power + 0.05 * intensity
+        cost = 3 * np.median(np.array(power)) + 0.05 * intensity
         # print("biceps l cost:", cost)
         return float(cost)
 
     def _triceps_l_cost(self, last_cycles_data: Dict[str, list[np.ndarray]], muscle_name: str) -> float:
-        # Angles
-        angles = np.hstack(last_cycles_data["angles"])
-        if np.any(angles < 0) or np.any(angles > 2 * np.pi):
-            raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
 
-        lower_bound = np.radians(CUTOFF_ANGLES["left"][0])
-        upper_bound = np.radians(CUTOFF_ANGLES["left"][1])
-        angles_in_range_indices = np.where(
-            np.logical_and(
-                lower_bound < angles,
-                angles < upper_bound,
+        power = []
+        for i_cycle in range(len(last_cycles_data["left_power"])):
+            # Angles
+            angles = last_cycles_data["angles"][i_cycle]
+            if np.any(angles < 0) or np.any(angles > 2 * np.pi):
+                raise RuntimeError("Something went wrong with angle wrapping, angles should be in [0, 2pi]")
+
+            lower_bound = np.radians(CUTOFF_ANGLES["left"][0])
+            upper_bound = np.radians(CUTOFF_ANGLES["left"][1])
+            angles_in_range_indices = np.where(
+                np.logical_and(
+                    lower_bound < angles,
+                    angles < upper_bound,
+                )
             )
-        )
-        if len(angles_in_range_indices) > 0:
-            angles_in_range_indices = angles_in_range_indices[0]
-            # print("triceps l", angles_in_range_indices.shape[0], " / ", angles.shape[0])
+            if len(angles_in_range_indices) > 0:
+                angles_in_range_indices = angles_in_range_indices[0]
+                # print("triceps l", angles_in_range_indices.shape[0], " / ", angles.shape[0])
 
-        # Maximize power
-        left_power = np.hstack(last_cycles_data["left_power"])[angles_in_range_indices]
-        power = -np.sum(left_power ** 2)
+            # Maximize power
+            left_power = last_cycles_data["left_power"][i_cycle][angles_in_range_indices]
+            power += [-np.sum(left_power ** 2)]
 
         # Minimize stimulation intensity
         intensity = self.worker_stim.controller.intensity[muscle_name] ** 2
 
-        cost = power + 0.05 * intensity
+        cost = 3 * np.array(np.median(power)) + 0.05 * intensity
         # print("triceps l cost:", cost)
         return float(cost)
 
