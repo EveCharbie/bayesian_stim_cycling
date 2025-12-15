@@ -140,9 +140,9 @@ class MuscleSection(QGroupBox):
         )
         self.intensity_slider = self.create_slider(
             name="Intensity",
-            min_val=PARAMS_BOUNDS[self.muscle_key]["pulse_intensity"][0],
+            min_val=0,  # PARAMS_BOUNDS[self.muscle_key]["pulse_intensity"][0],
             max_val=PARAMS_BOUNDS[self.muscle_key]["pulse_intensity"][1],
-            default_val=(PARAMS_BOUNDS[self.muscle_key]["pulse_intensity"][0] + PARAMS_BOUNDS[self.muscle_key]["pulse_intensity"][1]) / 2,
+            default_val=0,  # (PARAMS_BOUNDS[self.muscle_key]["pulse_intensity"][0] + PARAMS_BOUNDS[self.muscle_key]["pulse_intensity"][1]) / 2,
             increments=2,
         )
 
@@ -410,9 +410,14 @@ class Interface(QMainWindow):
             self.parameters["delt_ant_l"]["offset"],
             self.parameters["delt_ant_l"]["intensity"],
         )
+        params_to_send = params.add_angles_offset()
 
         # Send the updated parameters to the stimulation worker
-        # self.worker_stim.controller.apply_parameters(params)
+        print(params_to_send)
+        try:
+            self.worker_stim.controller.apply_parameters(params_to_send, really_change_stim_intensity=True)
+        except Exception as e:
+            print(f"Error applying parameters to stimulator: {e}")
 
     def setup_ui(self):
         """Set up the main UI layout."""
