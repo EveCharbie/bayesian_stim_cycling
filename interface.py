@@ -12,9 +12,11 @@ from PyQt6.QtWidgets import (
     QFrame,
     QStyleOptionSlider,
     QStyle,
+    QApplication,
 )
 from PyQt6.QtGui import QPainter, QColor, QPen, QPolygon
-from PyQt6.QtCore import Qt, QTimer, QRect, QPoint
+from PyQt6.QtCore import Qt, QTimer, QPoint
+
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
@@ -366,9 +368,9 @@ class Interface(QMainWindow):
         self.parameters = {}
         for muscle in self.muscle_mode.muscle_keys:
             self.parameters[muscle] = {
-                'onset': (PARAMS_BOUNDS[muscle]["onset_deg"][0] + PARAMS_BOUNDS[muscle]["onset_deg"][1]) / 2,
-                'offset': (PARAMS_BOUNDS[muscle]["offset_deg"][0] + PARAMS_BOUNDS[muscle]["offset_deg"][1]) / 2,
-                'intensity': (PARAMS_BOUNDS[muscle]["pulse_intensity"][0] + PARAMS_BOUNDS[muscle]["pulse_intensity"][1]) / 2
+                'onset': 0,
+                'offset': 0,
+                'intensity': 0,
             }
 
         # create the main window
@@ -413,7 +415,6 @@ class Interface(QMainWindow):
         params_to_send = params.add_angles_offset()
 
         # Send the updated parameters to the stimulation worker
-        print(params_to_send)
         try:
             self.worker_stim.controller.apply_parameters(params_to_send, really_change_stim_intensity=True)
         except Exception as e:
@@ -582,4 +583,15 @@ class Interface(QMainWindow):
                 background-color: #27ae60;
             }
         """)
+
+        # Stop the stimulation and pedal workers
+        self.stop_event.set()
+        self.worker_pedal.stop()
+        self.worker_stim.stop()
+
+        # Close the GUI
+        self.close()
+
+        # Quit the application
+        QApplication.quit()
 

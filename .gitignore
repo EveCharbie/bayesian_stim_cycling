@@ -6,3 +6,5 @@ __pycache__/
 bo_results.pkl
 
 bo_results_5h05.pkl
+
+*.pkl

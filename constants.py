@@ -49,7 +49,7 @@ def get_bounds_for_muscle(muscle1_name, muscle2_name, default_min_angle=30, defa
         m_angle = mean_angle(STIMULATION_RANGE[muscle1_name][0], STIMULATION_RANGE[muscle2_name][1])
         # Calculate the distance from base angles to midpoint
         muscle1_min_onset = angular_distance(STIMULATION_RANGE[muscle1_name][0], m_angle)
-        muscle2_max_offset = angular_distance(m_angle, STIMULATION_RANGE[muscle2_name][1])
+        muscle2_max_offset = angular_distance(STIMULATION_RANGE[muscle2_name][1], m_angle)
     else:
         # No overlap, use default ranges
         muscle1_min_onset = -default_min_angle
@@ -67,7 +67,7 @@ def get_bounds_for_muscle(muscle1_name, muscle2_name, default_min_angle=30, defa
         m_angle = mean_angle(STIMULATION_RANGE[muscle2_name][0], STIMULATION_RANGE[muscle1_name][1])
         # Calculate the distance from base angles to midpoint
         muscle2_min_onset = angular_distance(STIMULATION_RANGE[muscle2_name][0], m_angle)
-        muscle1_max_offset = angular_distance(m_angle, STIMULATION_RANGE[muscle1_name][1])
+        muscle1_max_offset = angular_distance(STIMULATION_RANGE[muscle1_name][1], m_angle)
     else:
         # No overlap, use default ranges
         muscle2_min_onset = -default_min_angle
@@ -140,51 +140,52 @@ def set_param_bounds():
             "onset_deg": [biceps_r_min_onset, biceps_r_max_onset],
             "offset_deg": [biceps_r_min_offset, biceps_r_max_offset],
             # "pulse_intensity": [30, 50],  # TODO: Change these values to really stim
-            "pulse_intensity": [5, 15],
+            "pulse_intensity": [6, 12],
         },
         "triceps_r": {
             "onset_deg": [triceps_r_min_onset, triceps_r_max_onset],
             "offset_deg": [triceps_r_min_offset, triceps_r_max_offset],
             # "pulse_intensity": [30, 60],  # TODO: Change these values to really stim
-            "pulse_intensity": [5, 15],
+            "pulse_intensity": [4, 8],
         },
         "biceps_l": {
             "onset_deg": [biceps_l_min_onset, biceps_l_max_onset],
             "offset_deg": [biceps_l_min_offset, biceps_l_max_offset],
             # "pulse_intensity": [30, 67],  # TODO: Change these values to really stim
-            "pulse_intensity": [5, 15],
+            "pulse_intensity": [6, 10],
         },
         "triceps_l": {
             "onset_deg": [triceps_l_min_onset, triceps_l_max_onset],
             "offset_deg": [triceps_l_min_offset, triceps_l_max_offset],
             # "pulse_intensity": [30, 58],  # TODO: Change these values to really stim
-            "pulse_intensity": [5, 15],
+            "pulse_intensity": [4, 8],
         },
         "delt_post_r": {
             "onset_deg": [delt_post_r_min_onset, delt_post_r_max_onset],
             "offset_deg": [delt_post_r_min_offset, delt_post_r_max_offset],
             # "pulse_intensity": [30, 50],  # TODO: Change these values to really stim
-            "pulse_intensity": [5, 15],
+            "pulse_intensity": [6, 10],
         },
         "delt_ant_r": {
             "onset_deg": [delt_ant_r_min_onset, delt_ant_r_max_onset],
             "offset_deg": [delt_ant_r_min_offset, delt_ant_r_max_offset],
             # "pulse_intensity": [30, 60],  # TODO: Change these values to really stim
-            "pulse_intensity": [5, 15],
+            "pulse_intensity": [6, 10],
         },
         "delt_post_l": {
             "onset_deg": [delt_ant_l_min_onset, delt_ant_l_max_onset],
             "offset_deg": [delt_ant_l_min_offset, delt_ant_l_max_offset],
             # "pulse_intensity": [30, 67],  # TODO: Change these values to really stim
-            "pulse_intensity": [5, 15],
+            "pulse_intensity": [6, 10],
         },
         "delt_ant_l": {
             "onset_deg": [delt_ant_l_min_onset, delt_ant_l_max_onset],
             "offset_deg": [delt_ant_l_min_offset, delt_ant_l_max_offset],
             # "pulse_intensity": [30, 58],  # TODO: Change these values to really stim
-            "pulse_intensity": [5, 15],
+            "pulse_intensity": [6, 10],
         },
     }
     return PARAMS_BOUNDS
 
 PARAMS_BOUNDS = set_param_bounds()
+print(PARAMS_BOUNDS)

@@ -37,25 +37,18 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
         muscle_mode=muscle_mode,
     )
 
+    threading.Thread(target=worker_pedal.run, daemon=True).start()
+    threading.Thread(target=worker_stim.run, daemon=True).start()
+
     # Create a GUI so that the subject/experimentator can interact with the stimulation parameters
     app = QApplication(sys.argv)
     interface = Interface(worker_stim=worker_stim, worker_pedal=worker_pedal, muscle_mode=muscle_mode)
     interface.show()
 
-    threading.Thread(target=worker_pedal.run, daemon=True).start()
-    threading.Thread(target=worker_stim.run, daemon=True).start()
-    time.sleep(0.1)  # Give some time to start pedal and stim workers
+    # This blocks until GUI closes
+    exit_code = app.exec()
 
-    # Start the GUI
-    sys.exit(app.exec())
-
-    # Keep main thread alive
-    try:
-        while True:
-            time.sleep(5)
-    except KeyboardInterrupt:
-        worker_pedal.stop()
-        # worker_stim.stop()
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
