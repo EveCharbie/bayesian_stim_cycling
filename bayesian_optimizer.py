@@ -1,5 +1,6 @@
 from typing import Callable
 import logging
+from enum import Enum
 
 import numpy as np
 from scipy.stats import norm
@@ -8,6 +9,12 @@ from scipy.spatial.distance import cdist
 
 from common_types import MuscleMode
 from constants import PARAMS_BOUNDS
+
+
+class BoType(Enum):
+    PROBABILITY_OF_IMPROVEMENT = "pi"
+    EXPECTED_IMPROVEMENT = "ei"
+    NOISY_EXPECTED_IMPROVEMENT = "nei"
 
 
 class OptimizationResults:
@@ -24,6 +31,20 @@ class OptimizationResults:
     @property
     def fun(self) -> float:
         return self.best_y
+
+    @property
+    def best_x(self):
+        return self._best_x
+
+    @best_x.setter
+    def best_x(self, value: np.ndarray):
+        if isinstance(value, np.ndarray):
+            self._best_x = value
+        elif isinstance(value, list):
+            self._best_x = np.array(value).reshape(1, 3)
+        else:
+            raise ValueError(f"best_x must be a numpy array or a list, got {value}")
+
 
 class GaussianProcess:
     """
@@ -100,6 +121,7 @@ class BayesianOptimizer:
         self.n_params = 3
         self.xi = xi
         self.gp = {muscle: GaussianProcess(length_scale=length_scale) for muscle in self.muscle_mode.muscle_keys}
+        self.bo_type = BoType.PROBABILITY_OF_IMPROVEMENT  # TOBECHANGED: Should try noisy EI
 
         self.input_observed = {muscle: np.empty((0, self.n_params)) for muscle in self.muscle_mode.muscle_keys}
         self.output_observed = {muscle: np.empty((0, 1)) for muscle in self.muscle_mode.muscle_keys}
@@ -134,9 +156,69 @@ class BayesianOptimizer:
 
         return pi
 
+    def expected_improvement(self, x: np.ndarray, muscle: str) -> np.ndarray:
+        """
+        Calculate Expected Improvement at x.
+        EI(x) = (f_best - μ(x) - ξ) * Φ(Z) + σ(x) * φ(Z)
+        where Z = (f_best - μ(x) - ξ) / σ(x)
+        """
+        x = np.array(x).reshape(-1, self.n_params)
+        mean, std = self.gp[muscle].predict(x)
+
+        # Avoid division by zero
+        std = np.maximum(std, 1e-10)
+
+        # Calculate EI (for minimization)
+        z = (self.best_y[muscle] - mean - self.xi) / std
+        ei = (self.best_y[muscle] - mean - self.xi) * norm.cdf(z) + std * norm.pdf(z)
+
+        return ei
+
+    def noisy_expected_improvement(self, x: np.ndarray, muscle: str) -> np.ndarray:
+        """
+        Calculate Noisy Expected Improvement at x.
+
+        NEI accounts for noise in observations by considering both the predictive
+        uncertainty and the noise level at the incumbent (best observed point).
+
+        NEI(x) = σ_n * [γ(x) * Φ(γ(x)) + φ(γ(x))]
+        where:
+            σ_n = noise std at incumbent
+            γ(x) = (μ_n - μ(x) - ξ) / sqrt(σ(x)^2 + σ_n^2)
+            μ_n = mean at incumbent
+        """
+        x = np.array(x).reshape(-1, self.n_params)
+        mean, std = self.gp[muscle].predict(x)
+
+        # Get incumbent (best point) predictions
+        best_x = self.input_observed[muscle][np.argmin(self.output_observed[muscle])].reshape(1, -1)
+        mean_incumbent, std_incumbent = self.gp[muscle].predict(best_x)
+
+        # Avoid division by zero
+        std = np.maximum(std, 1e-10)
+        std_incumbent = np.maximum(std_incumbent, 1e-10)
+
+        # Calculate composite uncertainty
+        composite_std = np.sqrt(std ** 2 + std_incumbent ** 2)
+
+        # Calculate standardized improvement
+        gamma = (mean_incumbent - mean - self.xi) / composite_std
+
+        # Calculate NEI
+        nei = std_incumbent * (gamma * norm.cdf(gamma) + norm.pdf(gamma))
+
+        return nei
+
     def _acquisition_to_minimize(self, x: np.ndarray, muscle: str) -> float:
         """Negative PI for minimization."""
-        return -self.probability_of_improvement(x.reshape(1, -1), muscle)[0]
+        if self.bo_type == BoType.EXPECTED_IMPROVEMENT:
+            return -self.expected_improvement(x.reshape(1, -1), muscle)[0]
+        elif self.bo_type == BoType.NOISY_EXPECTED_IMPROVEMENT:
+            return -self.noisy_expected_improvement(x.reshape(1, -1), muscle)[0]
+        elif self.bo_type == BoType.PROBABILITY_OF_IMPROVEMENT:
+            return -self.probability_of_improvement(x.reshape(1, -1), muscle)[0]
+        else:
+            raise ValueError(f"Unknown BO type: {self.bo_type}")
 
     def suggest_next_point(self, n_restarts: int = 10) -> np.ndarray:
         """
