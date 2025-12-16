@@ -7,62 +7,141 @@ from enum import Enum
 from constants import STIMULATION_RANGE
 
 
-@dataclass
 class StimParameters:
-    """
-    Single BO sample of stimulation parameters:
 
-      onset_deg / offset_deg / pulse_intensity / pulse_width
-      for each muscle: biceps_r, triceps_r, biceps_l, triceps_l.
-    """
+    def __init__(
+            self,
+            onset_deg_biceps_r: float = 0,
+            offset_deg_biceps_r: float = 0,
+            pulse_intensity_biceps_r: float = 0,
+            onset_deg_triceps_r: float = 0,
+            offset_deg_triceps_r: float = 0,
+            pulse_intensity_triceps_r: float = 0,
+            onset_deg_biceps_l: float = 0,
+            offset_deg_biceps_l: float = 0,
+            pulse_intensity_biceps_l: float = 0,
+            onset_deg_triceps_l: float = 0,
+            offset_deg_triceps_l: float = 0,
+            pulse_intensity_triceps_l: float = 0,
+            onset_deg_delt_post_r: float = 0,
+            offset_deg_delt_post_r: float = 0,
+            pulse_intensity_delt_post_r: float = 0,
+            onset_deg_delt_ant_r: float = 0,
+            offset_deg_delt_ant_r: float = 0,
+            pulse_intensity_delt_ant_r: float = 0,
+            onset_deg_delt_post_l: float = 0,
+            offset_deg_delt_post_l: float = 0,
+            pulse_intensity_delt_post_l: float = 0,
+            onset_deg_delt_ant_l: float = 0,
+            offset_deg_delt_ant_l: float = 0,
+            pulse_intensity_delt_ant_l: float = 0,
+        ):
 
-    # Right biceps
-    onset_deg_biceps_r: float
-    offset_deg_biceps_r: float
-    pulse_intensity_biceps_r: float
+            # Right biceps
+            self.onset_deg_biceps_r = onset_deg_biceps_r
+            self.offset_deg_biceps_r = offset_deg_biceps_r
+            self.pulse_intensity_biceps_r = pulse_intensity_biceps_r
 
-    # Right triceps
-    onset_deg_triceps_r: float
-    offset_deg_triceps_r: float
-    pulse_intensity_triceps_r: float
+            # Right triceps
+            self.onset_deg_triceps_r = onset_deg_triceps_r
+            self.offset_deg_triceps_r = offset_deg_triceps_r
+            self.pulse_intensity_triceps_r = pulse_intensity_triceps_r
 
-    # Left biceps
-    onset_deg_biceps_l: float
-    offset_deg_biceps_l: float
-    pulse_intensity_biceps_l: float
+            # Left biceps
+            self.onset_deg_biceps_l = onset_deg_biceps_l
+            self.offset_deg_biceps_l = offset_deg_biceps_l
+            self.pulse_intensity_biceps_l = pulse_intensity_biceps_l
 
-    # Left triceps
-    onset_deg_triceps_l: float
-    offset_deg_triceps_l: float
-    pulse_intensity_triceps_l: float
+            # Left triceps
+            self.onset_deg_triceps_l = onset_deg_triceps_l
+            self.offset_deg_triceps_l = offset_deg_triceps_l
+            self.pulse_intensity_triceps_l = pulse_intensity_triceps_l
 
-    # Right posterior deltoid
-    onset_deg_delt_post_r: float
-    offset_deg_delt_post_r: float
-    pulse_intensity_delt_post_r: float
+            # Right posterior deltoid
+            self.onset_deg_delt_post_r = onset_deg_delt_post_r
+            self.offset_deg_delt_post_r = offset_deg_delt_post_r
+            self.pulse_intensity_delt_post_r = pulse_intensity_delt_post_r
 
-    # Right deltoid anterior
-    onset_deg_delt_ant_r: float
-    offset_deg_delt_ant_r: float
-    pulse_intensity_delt_ant_r: float
+            # Right deltoid anterior
+            self.onset_deg_delt_ant_r = onset_deg_delt_ant_r
+            self.offset_deg_delt_ant_r = offset_deg_delt_ant_r
+            self.pulse_intensity_delt_ant_r = pulse_intensity_delt_ant_r
 
-    # Left posterior deltoid
-    onset_deg_delt_post_l: float
-    offset_deg_delt_post_l: float
-    pulse_intensity_delt_post_l: float
+            # Left posterior deltoid
+            self.onset_deg_delt_post_l = onset_deg_delt_post_l
+            self.offset_deg_delt_post_l = offset_deg_delt_post_l
+            self.pulse_intensity_delt_post_l = pulse_intensity_delt_post_l
 
-    # Left deltoid anterior
-    onset_deg_delt_ant_l: float
-    offset_deg_delt_ant_l: float
-    pulse_intensity_delt_ant_l: float
+            # Left deltoid anterior
+            self.onset_deg_delt_ant_l = onset_deg_delt_ant_l
+            self.offset_deg_delt_ant_l = offset_deg_delt_ant_l
+            self.pulse_intensity_delt_ant_l = pulse_intensity_delt_ant_l
 
     @classmethod
-    def from_flat_vector(cls, x: List[float]) -> "StimParameters":
+    def from_flat_vector(self, x: List[float], muscle_mode: MuscleMode) -> "StimParameters":
         """
         Convert 16D BO vector to StimParameters instance.
         Order must match the search space in bo_worker.py.
         """
-        return cls(*x)
+        if isinstance(muscle_mode, MuscleMode.BICEPS_TRICEPS):
+            return StimParameters(
+                onset_deg_biceps_r=x[0],
+                offset_deg_biceps_r=x[1],
+                pulse_intensity_biceps_r=x[2],
+                onset_deg_triceps_r=x[3],
+                offset_deg_triceps_r=x[4],
+                pulse_intensity_triceps_r=x[5],
+                onset_deg_biceps_l=x[6],
+                offset_deg_biceps_l=x[7],
+                pulse_intensity_biceps_l=x[8],
+                onset_deg_triceps_l=x[9],
+                offset_deg_triceps_l=x[10],
+                pulse_intensity_triceps_l=x[11],
+            )
+        elif isinstance(muscle_mode, MuscleMode.DELTOIDS):
+            return StimParameters(
+                onset_deg_delt_post_r=x[0],
+                offset_deg_delt_post_r=x[1],
+                pulse_intensity_delt_post_r=x[2],
+                onset_deg_delt_ant_r=x[3],
+                offset_deg_delt_ant_r=x[4],
+                pulse_intensity_delt_ant_r=x[5],
+                onset_deg_delt_post_l=x[6],
+                offset_deg_delt_post_l=x[7],
+                pulse_intensity_delt_post_l=x[8],
+                onset_deg_delt_ant_l=x[9],
+                offset_deg_delt_ant_l=x[10],
+                pulse_intensity_delt_ant_l=x[11],
+            )
+        elif isinstance(muscle_mode, MuscleMode.BOTH):
+            return StimParameters(
+                onset_deg_biceps_r=x[0],
+                offset_deg_biceps_r=x[1],
+                pulse_intensity_biceps_r=x[2],
+                onset_deg_triceps_r=x[3],
+                offset_deg_triceps_r=x[4],
+                pulse_intensity_triceps_r=x[5],
+                onset_deg_biceps_l=x[6],
+                offset_deg_biceps_l=x[7],
+                pulse_intensity_biceps_l=x[8],
+                onset_deg_triceps_l=x[9],
+                offset_deg_triceps_l=x[10],
+                pulse_intensity_triceps_l=x[11],
+                onset_deg_delt_post_r=x[12],
+                offset_deg_delt_post_r=x[13],
+                pulse_intensity_delt_post_r=x[14],
+                onset_deg_delt_ant_r=x[15],
+                offset_deg_delt_ant_r=x[16],
+                pulse_intensity_delt_ant_r=x[17],
+                onset_deg_delt_post_l=x[18],
+                offset_deg_delt_post_l=x[19],
+                pulse_intensity_delt_post_l=x[20],
+                onset_deg_delt_ant_l=x[21],
+                offset_deg_delt_ant_l=x[22],
+                pulse_intensity_delt_ant_l=x[23],
+            )
+        else:
+            raise ValueError(f"Invalid muscle mode : {muscle_mode}")
 
     @classmethod
     def from_dict(cls, param_dict: Dict[str, float]) -> "StimParameters":

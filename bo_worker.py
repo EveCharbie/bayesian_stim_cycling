@@ -366,7 +366,7 @@ class BayesianOptimizationWorker:
         x is a flat vector of stimulation parameters.
         """
         # Get the current parameters
-        params = StimParameters.from_flat_vector(x)
+        params = StimParameters.from_flat_vector(x, self.muscle_mode)
         parameters = params.add_angles_offset()
         self._logger.info(f"Evaluating parameters: {parameters}")
 
@@ -407,7 +407,7 @@ class BayesianOptimizationWorker:
             "cost_list": self.cost_dict,
             "parameter_list": self.parameter_list,
         }
-        file_name = f"bo_results{self.muscle_mode.value}.pkl"
+        file_name = f"bo_results_{self.muscle_mode.value}.pkl"
         with open(file_name, "wb") as f:
             pickle.dump(results, f)
         self._logger.info(f"Results saved to {file_name}")
@@ -437,7 +437,7 @@ class BayesianOptimizationWorker:
             length_scale=1.0,
         )
         self.best_result_dict = bayesian_optimizer.optimize(
-            n_iterations=75,
+            n_iterations=self.n_iterations,
             nb_init_intensity_increasing_steps=self.nb_init_intensity_increasing_steps,
         )
 

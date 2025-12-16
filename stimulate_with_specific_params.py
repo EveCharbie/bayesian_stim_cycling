@@ -13,16 +13,22 @@ from common_types import StimParameters, MuscleMode
 from pedal_communication import DataCollector, PedalDevice
 
 
-PARAMETER_FILE_PATH = "muscle_data_20251216_112111.pkl"  # TOBECHANGED
-RESULT_TYPE = "MANUAL"  # "MANUAL" or "OPTIMIZATION"  # TOBECHANGED
+# RESULT_TYPE = "MANUAL"  # TOBECHANGED
+# PARAMETER_FILE_PATH = "muscle_data_20251216_112111.pkl"  # TOBECHANGED
 
+RESULT_TYPE = "OPTIMIZATION"  # TOBECHANGED
+PARAMETER_FILE_PATH = {
+    "BICEPS_TRICEPS": "bo_results_biceps_triceps.pkl",  # TOBECHANGED
+    "DELTOIDS": "bo_results_deltoids.pkl",  # TOBECHANGED
+}
 
 def start_stimulate(data_collector: DataCollector):
 
     # Load parameters from file
-    with open(PARAMETER_FILE_PATH, "rb") as f:
-        params_results = pickle.load(f)
     if RESULT_TYPE == "MANUAL":
+        with open(PARAMETER_FILE_PATH, "rb") as f:
+            params_results = pickle.load(f)
+
         params = StimParameters(
             onset_deg_biceps_r=params_results["muscles_best_slider"]["Biceps Right"]["onset"],
             offset_deg_biceps_r=params_results["muscles_best_slider"]["Biceps Right"]["offset"],
@@ -52,7 +58,39 @@ def start_stimulate(data_collector: DataCollector):
         stim_params = params.add_angles_offset()
 
     elif RESULT_TYPE == "OPTIMIZATION":
-        print("TODO")
+        with open(PARAMETER_FILE_PATH["BICEPS_TRICEPS"], "rb") as f:
+            params_biceps_triceps_results = pickle.load(f)
+
+        with open(PARAMETER_FILE_PATH["DELTOIDS"], "rb") as f:
+            params_deltoids_results = pickle.load(f)
+
+        params = StimParameters(
+            onset_deg_biceps_r=params_biceps_triceps_results["best_params"][0].best_x[0, 0],
+            offset_deg_biceps_r=params_biceps_triceps_results["best_params"][0].best_x[0, 1],
+            pulse_intensity_biceps_r=params_biceps_triceps_results["best_params"][0].best_x[0, 2],
+            onset_deg_triceps_r=params_biceps_triceps_results["best_params"][1].best_x[0, 0],
+            offset_deg_triceps_r=params_biceps_triceps_results["best_params"][1].best_x[0, 1],
+            pulse_intensity_triceps_r=params_biceps_triceps_results["best_params"][1].best_x[0, 2],
+            onset_deg_biceps_l=params_biceps_triceps_results["best_params"][2].best_x[0, 0],
+            offset_deg_biceps_l=params_biceps_triceps_results["best_params"][2].best_x[0, 1],
+            pulse_intensity_biceps_l=params_biceps_triceps_results["best_params"][2].best_x[0, 2],
+            onset_deg_triceps_l=params_biceps_triceps_results["best_params"][3].best_x[0, 0],
+            offset_deg_triceps_l=params_biceps_triceps_results["best_params"][3].best_x[0, 1],
+            pulse_intensity_triceps_l=params_biceps_triceps_results["best_params"][3].best_x[0, 2],
+            onset_deg_delt_post_r=params_deltoids_results["best_params"][0].best_x[0, 0],
+            offset_deg_delt_post_r=params_deltoids_results["best_params"][0].best_x[0, 1],
+            pulse_intensity_delt_post_r=params_deltoids_results["best_params"][0].best_x[0, 2],
+            onset_deg_delt_ant_r=params_deltoids_results["best_params"][1].best_x[0, 0],
+            offset_deg_delt_ant_r=params_deltoids_results["best_params"][1].best_x[0, 1],
+            pulse_intensity_delt_ant_r=params_deltoids_results["best_params"][1].best_x[0, 2],
+            onset_deg_delt_post_l=params_deltoids_results["best_params"][2].best_x[0, 0],
+            offset_deg_delt_post_l=params_deltoids_results["best_params"][2].best_x[0, 1],
+            pulse_intensity_delt_post_l=params_deltoids_results["best_params"][2].best_x[0, 2],
+            onset_deg_delt_ant_l=params_deltoids_results["best_params"][3].best_x[0, 0],
+            offset_deg_delt_ant_l=params_deltoids_results["best_params"][3].best_x[0, 1],
+            pulse_intensity_delt_ant_l=params_deltoids_results["best_params"][3].best_x[0, 2],
+        )
+        stim_params = params.add_angles_offset()
     else:
         raise ValueError(f"Unknown RESULT_TYPE: {RESULT_TYPE}")
 

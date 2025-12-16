@@ -15,13 +15,16 @@ def load_results(file_path: str):
 
 def plot_results(cost_list, parameters_list,  muscle_mode: MuscleMode.BICEPS_TRICEPS | MuscleMode.DELTOIDS):
 
-    colors = np.arange(100)[:len(cost_list["biceps_r"])]
+    colors = np.arange(100)[:len(cost_list[list(cost_list.keys())[0]])]
     n_muscles = len(muscle_mode.muscle_keys)
     fig_optim, axs_optim = plt.subplots(n_muscles, 3, figsize=(12, 8))
 
-    for i_iter in range(len(cost_list["biceps_r"])):
+    for i_iter in range(len(cost_list[list(cost_list.keys())[0]])):
         parameters = parameters_list[i_iter].to_flat_vector()
-        i_param = 0
+        if muscle_mode == MuscleMode.BICEPS_TRICEPS:
+            i_param = 0
+        else:
+            i_param = 12
         for i_muscle, muscle in enumerate(muscle_mode.muscle_keys):
             cost = cost_list[muscle][i_iter]
             axs_optim[i_muscle, 0].set_title("Onset")
@@ -53,9 +56,9 @@ def plot_results(cost_list, parameters_list,  muscle_mode: MuscleMode.BICEPS_TRI
 
 if __name__ == "__main__":
 
-    muscle_mode = MuscleMode.BICEPS_TRICEPS()
+    muscle_mode = MuscleMode.DELTOIDS()  # TOBECHANGED: MuscleMode.BICEPS_TRICEPS() or MuscleMode.DELTOIDS()
 
-    costs_list, parameters_list = load_results(f"{muscle_mode.value}_bo_results.pkl")
+    costs_list, parameters_list = load_results(f"bo_results_{muscle_mode.value}.pkl")
 
     plot_results(costs_list, parameters_list, muscle_mode)
 
