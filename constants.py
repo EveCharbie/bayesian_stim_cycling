@@ -2,18 +2,18 @@
 
 # Zero = left hand in front
 STIMULATION_RANGE = {
-    "biceps_r": [130, 280],  # [220 - 90, 10 - 90 + 360],
-    "triceps_r": [290, 90],  # [20 - 90 + 360, 180 - 90],
-    "biceps_l": [310, 100],  # [40 - 90 + 360, 190 - 90],
-    "triceps_l": [110, 270],  # [200 - 90, 360 - 90],
-    "delt_post_r": [130, 280],  # [220 - 90, 10 - 90 + 360],
-    "delt_ant_r": [290, 90],  # [20 - 90 + 360, 180 - 90],
-    "delt_post_l": [310, 100],  # [40 - 90 + 360, 190 - 90],
-    "delt_ant_l": [110, 270],  # [200 - 90, 360 - 90],
+    "biceps_r": [130, 280],  # TOBECHANGED
+    "triceps_r": [290, 90],  # TOBECHANGED
+    "biceps_l": [310, 100],  # TOBECHANGED
+    "triceps_l": [110, 270],  # TOBECHANGED
+    "delt_post_r": [130, 280],  # TOBECHANGED
+    "delt_ant_r": [290, 90],  # TOBECHANGED
+    "delt_post_l": [310, 100],  # TOBECHANGED
+    "delt_ant_l": [110, 270],  # TOBECHANGED
 }
 CUTOFF_ANGLES = {
-    "right": [110, 285],  # In degrees (biceps_r is in this range)
-    "left": [105, 290],   # In degrees (triceps_l is in this range)
+    "right": [110, 285],  # In degrees (biceps_r is in this range)  # TOBECHANGED
+    "left": [105, 290],   # In degrees (triceps_l is in this range)  # TOBECHANGED
 }
 
 def angular_distance(angle1, angle2):
@@ -139,53 +139,44 @@ def set_param_bounds():
         "biceps_r":{
             "onset_deg": [biceps_r_min_onset, biceps_r_max_onset],
             "offset_deg": [biceps_r_min_offset, biceps_r_max_offset],
-            # "pulse_intensity": [30, 50],  # TODO: Change these values to really stim
-            "pulse_intensity": [6, 12],
+            "pulse_intensity": [6, 12],  # TOBECHANGED
         },
         "triceps_r": {
             "onset_deg": [triceps_r_min_onset, triceps_r_max_onset],
             "offset_deg": [triceps_r_min_offset, triceps_r_max_offset],
-            # "pulse_intensity": [30, 60],  # TODO: Change these values to really stim
-            "pulse_intensity": [4, 8],
+            "pulse_intensity": [4, 8],  # TOBECHANGED
         },
         "biceps_l": {
             "onset_deg": [biceps_l_min_onset, biceps_l_max_onset],
             "offset_deg": [biceps_l_min_offset, biceps_l_max_offset],
-            # "pulse_intensity": [30, 67],  # TODO: Change these values to really stim
-            "pulse_intensity": [6, 10],
+            "pulse_intensity": [6, 10],  # TOBECHANGED
         },
         "triceps_l": {
             "onset_deg": [triceps_l_min_onset, triceps_l_max_onset],
             "offset_deg": [triceps_l_min_offset, triceps_l_max_offset],
-            # "pulse_intensity": [30, 58],  # TODO: Change these values to really stim
-            "pulse_intensity": [4, 8],
+            "pulse_intensity": [4, 8],  # TOBECHANGED
         },
         "delt_post_r": {
             "onset_deg": [delt_post_r_min_onset, delt_post_r_max_onset],
             "offset_deg": [delt_post_r_min_offset, delt_post_r_max_offset],
-            # "pulse_intensity": [30, 50],  # TODO: Change these values to really stim
-            "pulse_intensity": [6, 10],
+            "pulse_intensity": [6, 10],  # TOBECHANGED
         },
         "delt_ant_r": {
             "onset_deg": [delt_ant_r_min_onset, delt_ant_r_max_onset],
             "offset_deg": [delt_ant_r_min_offset, delt_ant_r_max_offset],
-            # "pulse_intensity": [30, 60],  # TODO: Change these values to really stim
-            "pulse_intensity": [6, 10],
+            "pulse_intensity": [6, 10],  # TOBECHANGED
         },
         "delt_post_l": {
             "onset_deg": [delt_ant_l_min_onset, delt_ant_l_max_onset],
             "offset_deg": [delt_ant_l_min_offset, delt_ant_l_max_offset],
-            # "pulse_intensity": [30, 67],  # TODO: Change these values to really stim
-            "pulse_intensity": [6, 10],
+            "pulse_intensity": [6, 10],  # TOBECHANGED
         },
         "delt_ant_l": {
             "onset_deg": [delt_ant_l_min_onset, delt_ant_l_max_onset],
             "offset_deg": [delt_ant_l_min_offset, delt_ant_l_max_offset],
-            # "pulse_intensity": [30, 58],  # TODO: Change these values to really stim
-            "pulse_intensity": [6, 10],
+            "pulse_intensity": [6, 10],  # TOBECHANGED
         },
     }
     return PARAMS_BOUNDS
 
 PARAMS_BOUNDS = set_param_bounds()
-print(PARAMS_BOUNDS)

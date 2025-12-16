@@ -16,16 +16,15 @@ from common_types import MuscleMode
 
 from pedal_communication import PedalDevice, DataCollector
 
+MUSCLE_MODE = MuscleMode.BICEPS_TRICEPS()  # TOBECHANGED
 
 def start_stimulation_optimization(data_collector: DataCollector) -> None:
-
-    muscle_mode = MuscleMode.BICEPS_TRICEPS()
 
     # Shared stop flag
     stop_event = threading.Event()
 
     # Create a thread to plot the results in real time
-    # worker_plot = LivePlotter(muscle_mode=muscle_mode)
+    # worker_plot = LivePlotter(muscle_mode=MUSCLE_MODE)
 
     # Create pedal worker (third worker) that provides the crank angle
     worker_pedal = PedalWorker(
@@ -39,7 +38,7 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
     # the angle coming from the pedal device instead of the NI-DAQ.
     worker_stim = StimulationWorker(
         worker_pedal=worker_pedal,
-        muscle_mode=muscle_mode,
+        muscle_mode=MUSCLE_MODE,
     )
 
     # Create Bayesian optimization worker
@@ -47,9 +46,9 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
         stop_event=stop_event,
         worker_pedal=worker_pedal,
         worker_stim=worker_stim,
-        muscle_mode=muscle_mode,
+        muscle_mode=MUSCLE_MODE,
         nb_init_intensity_increasing_steps=5,
-        n_iterations=50,
+        n_iterations=50,  #TOBECHANGED
         really_change_stim_intensity=True,  # This is just a debugging flag to avoid having large stim during tests
         # worker_plot=worker_plot,
     )
@@ -67,28 +66,6 @@ def start_stimulation_optimization(data_collector: DataCollector) -> None:
     except KeyboardInterrupt:
         worker_pedal.stop()
         worker_stim.stop()
-
-    # try:
-    #     # Wait for BO to finish
-    #     bo_worker.join()
-    # except KeyboardInterrupt:
-    #     print("[Main] KeyboardInterrupt detected, stopping...")
-    # finally:
-    #     # Signal all threads to stop
-    #     stop_event.set()
-
-    #     # Quit stimulation worker (sentinel for the job queue)
-    #     job_queue.put(None)
-
-    #     # Join workers
-    #     stim_worker.join()
-    #     pedal_worker.join()
-
-    #     print("[Main] All threads stopped.")
-
-    #     if bo_worker.best_result is not None:
-    #         print("[Main] Best x:", bo_worker.best_result.x)
-    #         print("[Main] Best cost:", bo_worker.best_result.fun)
 
 
 if __name__ == "__main__":
