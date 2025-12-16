@@ -85,8 +85,16 @@ class MuscleSection(QGroupBox):
         )
 
         # Connect buttons
-        minus_btn.clicked.connect(lambda: slider.setValue(slider.value() - 1))
-        plus_btn.clicked.connect(lambda: slider.setValue(slider.value() + 1))
+        def increment_slider():
+            current = slider.value()
+            slider.setValue(current + 1)
+
+        def decrement_slider():
+            current = slider.value()
+            slider.setValue(current - 1)
+
+        minus_btn.clicked.connect(decrement_slider)
+        plus_btn.clicked.connect(increment_slider)
 
         # Assemble layout
         layout.addWidget(label)
@@ -106,9 +114,10 @@ class MuscleSection(QGroupBox):
 
     def get_values(self):
         """Return current slider values."""
-        scale = self.intensity_slider['scale']
         return {
-            'intensity': self.intensity_slider['slider'].value() / scale
+            'onset': self.onset_slider['slider'].value() / self.onset_slider['scale'],
+            'offset': self.offset_slider['slider'].value() / self.offset_slider['scale'],
+            'intensity': self.intensity_slider['slider'].value() / self.intensity_slider['scale']
         }
 
 
@@ -118,6 +127,8 @@ class Interface(QMainWindow):
     def __init__(self, worker_stim: StimulationWorker, muscle_mode: MuscleMode.BOTH):
         super().__init__(parent=None)
         self.worker_stim = worker_stim
+        if not isinstance(muscle_mode, MuscleMode.BOTH):
+            raise ValueError("muscle_mode must be MuscleMode.BOTH for this interface.")
         self.muscle_mode = muscle_mode
 
         # Store the parameters for each muscle
@@ -162,8 +173,9 @@ class Interface(QMainWindow):
             offset_deg_delt_ant_l=STIMULATION_RANGE["delt_ant_l"][1],
             pulse_intensity_delt_ant_l=self.parameters["delt_ant_l"]["intensity"],
         )
+
         # Send the updated parameters to the stimulation worker
-        self.worker_stim.controller.apply_parameters(params)
+        self.worker_stim.controller.apply_parameters(params, really_change_stim_intensity=True)
 
     def setup_ui(self):
         """Set up the main UI layout."""
@@ -228,46 +240,23 @@ def start_stimulate(data_collector: DataCollector):
         muscle_mode=muscle_mode,
     )
 
-    # Create a GUI so that the subject/experimentator can interact with the stimulation parameters
-    app = QApplication(sys.argv)
-    interface = Interface(worker_stim=None, muscle_mode=muscle_mode)
-    interface.show()
-
     threading.Thread(target=worker_pedal.run, daemon=True).start()
     threading.Thread(target=worker_stim.run, daemon=True).start()
 
-    # Start the GUI
-    sys.exit(app.exec())
+    # Create a GUI so that the subject/experimentator can interact with the stimulation parameters
+    app = QApplication(sys.argv)
+    interface = Interface(worker_stim=worker_stim, muscle_mode=muscle_mode)
+    interface.show()
 
-    # Keep main thread alive
-    try:
-        while True:
-            time.sleep(5)
-    except KeyboardInterrupt:
-        worker_pedal.stop()
-        worker_stim.stop()
+    # This blocks until GUI closes
+    exit_code = app.exec()
 
-    # try:
-    #     # Wait for BO to finish
-    #     bo_worker.join()
-    # except KeyboardInterrupt:
-    #     print("[Main] KeyboardInterrupt detected, stopping...")
-    # finally:
-    #     # Signal all threads to stop
-    #     stop_event.set()
+    # Cleanup after GUI closes
+    stop_event.set()
+    worker_pedal.stop()
+    worker_stim.stop()
 
-    #     # Quit stimulation worker (sentinel for the job queue)
-    #     job_queue.put(None)
-
-    #     # Join workers
-    #     stim_worker.join()
-    #     pedal_worker.join()
-
-    #     print("[Main] All threads stopped.")
-
-    #     if bo_worker.best_result is not None:
-    #         print("[Main] Best x:", bo_worker.best_result.x)
-    #         print("[Main] Best cost:", bo_worker.best_result.fun)
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

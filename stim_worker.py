@@ -149,7 +149,7 @@ class HandCycling2:
             # Range wraps around 360 (e.g., [220, 10])
             should_be_active = self.should_stimulation_be_active(onset, offset)
             # print(
-            #     "muscle: ", key,
+            #     "muscle: ", muscle,
             #     "onset: ", onset,
             #     "offset: ", offset,
             #     "angle", self.angle,
